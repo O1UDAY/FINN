@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, local } from "./api";
+import Masthead from "./Masthead";
 import { Bars, crore, fmt, IconDot, IconDown, IconSearch, IconUp, PairBars } from "./ui";
 
 const SUGGEST = ["TRENT", "PERSISTENT", "KAYNES", "CDSL", "DIXON", "POLYCAB"];
@@ -24,10 +25,7 @@ export default function Research({ symbol, setSymbol }) {
 
   return (
     <>
-      <header className="mast">
-        <span className="wordmark">FINN</span>
-        <span className="dateline">Company research</span>
-      </header>
+      <Masthead>Company research</Masthead>
       <form className="search" role="search" onSubmit={(e) => { e.preventDefault(); go(); }}>
         <IconSearch />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="NSE symbol, e.g. TRENT" aria-label="NSE symbol"

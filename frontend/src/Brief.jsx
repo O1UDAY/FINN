@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, local } from "./api";
 import Card from "./Card";
+import Masthead from "./Masthead";
 import { ago, cat } from "./ui";
 
 const WINDOWS = [
@@ -28,10 +29,7 @@ export default function Brief({ onAsk }) {
 
   return (
     <>
-      <header className="mast">
-        <span className="wordmark">FINN</span>
-        <span className="dateline">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
-      </header>
+      <Masthead>{new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</Masthead>
 
       <h1 className="page-title">The Brief</h1>
       <p className="standfirst">

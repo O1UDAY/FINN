@@ -111,3 +111,7 @@ export function PairBars({ a, b, la, lb }) {
     </>
   );
 }
+
+export const IconMoon = I(<path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" />, 20);
+export const IconSun = I(<><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></>, 20);
+export const IconSettings = I(<><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>, 22);

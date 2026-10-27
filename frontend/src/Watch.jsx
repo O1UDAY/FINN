@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import Appearance from "./Appearance";
+import Masthead from "./Masthead";
 import { CATS } from "./ui";
 
 const ALERTABLE = ["results", "M&A", "management_change", "fund_raise", "litigation", "credit_rating", "pledging", "insider_trading", "capex", "dividend", "bonus_split", "press_release"];
@@ -32,15 +34,14 @@ export default function Watch() {
 
   return (
     <>
-      <header className="mast">
-        <span className="wordmark">FINN</span>
-        <span className="dateline" aria-live="polite">{saved ? "Saved" : "Alerts & holdings"}</span>
-      </header>
-      <h1 className="page-title">Alerts</h1>
-      <p className="standfirst">Flag a stock when it moves more than you'd expect, or files something you care about.</p>
+      <Masthead>{saved ? "Saved" : "Settings"}</Masthead>
+      <h1 className="page-title">Settings</h1>
+      <p className="standfirst">How FINN looks, what counts as unusual, and which companies it watches.</p>
+
+      <Appearance />
 
       <section className="sec">
-        <h2>Price and volume</h2>
+        <h2>Price and volume alerts</h2>
         <div className="setting">
           <div><div>Volume spike</div><div className="d">Compared with the 20-day average</div></div>
           <Stepper value={s.volume_multiple} step={0.25} min={1.25} max={6} fmt={(v) => `${v}×`} onChange={(v) => save({ volume_multiple: v })} />
@@ -52,7 +53,7 @@ export default function Watch() {
       </section>
 
       <section className="sec">
-        <h2>Filings</h2>
+        <h2>Filing alerts</h2>
         <p className="dek">These go to the top of the Brief and are marked “Your alert”.</p>
         <ul className="checks">
           {ALERTABLE.map((c) => (

@@ -3,14 +3,17 @@ import { createRoot } from "react-dom/client";
 import { local } from "./api";
 import Brief from "./Brief";
 import Research from "./Research";
-import { IconAlerts, IconBrief, IconResearch } from "./ui";
+import { IconBrief, IconResearch, IconSettings } from "./ui";
 import Watch from "./Watch";
 import "./styles.css";
+import { applyPrefs } from "./theme";
+
+applyPrefs();
 
 const TABS = [
   { id: "brief", label: "Brief", Icon: IconBrief },
   { id: "research", label: "Research", Icon: IconResearch },
-  { id: "watch", label: "Alerts", Icon: IconAlerts },
+  { id: "watch", label: "Settings", Icon: IconSettings },
 ];
 
 function App() {
