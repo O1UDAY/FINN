@@ -1,5 +1,6 @@
 """Push side: the windowed Brief and triggered alerts."""
 import json
+import re
 from datetime import datetime, timedelta
 
 from . import llm
@@ -95,8 +96,32 @@ def fallback_headline(symbol, cat, subject, detail, amount_cr=None):
     return f"{symbol}: {CAT_LABEL.get(cat, 'filing')}{amt} (details in filing)"
 
 
+# Filings an investor must see whatever the amount: size tests hide legal and governance risk, not just noise.
+# Phrases are specific so that SEBI-regulation boilerplate ("Regulation 30 of SEBI (LODR)") never matches.
+RED_FLAGS = [
+    ("insolvency petition", r"insolvency|\bnclt\b|\bibc\b|corporate insolvency resolution|section\s*(7|9|10)\b.*code"),
+    ("fraud", r"\bfraud|forensic audit|siphon|misappropriat"),
+    ("regulator order", r"(sebi|rbi|cci|sfio|enforcement directorate|income tax|gst).{0,40}\b(order|show cause|search|raid|seizure|penalt)|show cause notice|adjudication order"),
+    ("auditor resignation", r"(auditor|statutory audit).{0,40}resign|resignation of (the )?(statutory )?auditor"),
+    ("KMP resignation", r"resign.{0,60}\b(managing director|\bmd\b|ceo|cfo|chief executive|chief financial)|\b(managing director|ceo|cfo|chief executive|chief financial).{0,60}resign"),
+    ("default", r"\bdefault(ed)? (in|on) (payment|repayment)|non-payment of (interest|principal)|delay in (payment|servicing) of"),
+    ("pledge", r"(invocation|creation) of pledge|pledged shares|encumbrance"),
+]
+
+
+def red_flag(subject, detail):
+    text = f"{subject or ''} {detail or ''}".lower()
+    for name, rx in RED_FLAGS:
+        if re.search(rx, text):
+            return name
+    return None
+
+
 def story_reason(item, alert, cat, imp, role=None):
     label = CAT_LABEL.get(cat, "filing")
+    if item.get("red_flag"):
+        size = f", claim {item['claim']}" if item.get("claim") else ""
+        return f"Red flag: {item['red_flag']}{size} (shown whatever the amount)"
     if item.get("ratio"):
         return f"Large vs size: {item['ratio'] * 100:.2f}% of market cap"
     if alert:
@@ -107,7 +132,7 @@ def story_reason(item, alert, cat, imp, role=None):
 
 
 def build_brief(hours=24, now=None, enrich_missing=True):
-    from .materiality import immaterial_line
+    from .materiality import fmt_cr, immaterial_line
     conn = connect()
     s = get_settings(conn)
     now = now or datetime.now()
@@ -138,7 +163,12 @@ def build_brief(hours=24, now=None, enrich_missing=True):
                 "text": headlines.get(r["id"]) or fallback_headline(r["symbol"], cat, r["subject"], r["detail"], r["amount_cr"]),
                 "enriched": r["id"] in headlines}
 
-        if r["material"] == 0:  # size check ran and the amount is noise for a company this big
+        flag = red_flag(r["subject"], r["detail"])
+        if flag:
+            item["red_flag"] = flag
+            if r["amount_cr"]:
+                item["claim"] = fmt_cr(r["amount_cr"])
+        if r["material"] == 0 and not flag:  # size check ran and the amount is noise for a company this big
             item["text"] = immaterial_line(r["amount_cr"], r["mcap_cr"])
             routine.append(item)
             continue
@@ -147,7 +177,7 @@ def build_brief(hours=24, now=None, enrich_missing=True):
 
         # The last 24h is judged the same in every window, so widening the window never hides today's stories.
         recent = ts >= now - timedelta(hours=24)
-        story = imp >= ROUTINE_BELOW and (not long_window or recent or imp >= LONG_WINDOW_STORY or (alert and imp >= LONG_WINDOW_ALERT))
+        story = bool(flag) or imp >= ROUTINE_BELOW and (not long_window or recent or imp >= LONG_WINDOW_STORY or (alert and imp >= LONG_WINDOW_ALERT))
         if not story:
             routine.append(item)
             continue
