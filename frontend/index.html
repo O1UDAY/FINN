@@ -15,9 +15,8 @@
       // Apply saved appearance before first paint so the page never flashes the wrong theme.
       try {
         var p = JSON.parse(localStorage.getItem("finn:appearance") || "{}"), r = document.documentElement;
-        var m = p.paper === "stocks" ? "dark" : p.mode && p.mode !== "system" ? p.mode : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        r.dataset.mode = m; r.dataset.paper = p.paper || "salmon"; r.dataset.accent = p.accent || "claret";
-        r.style.setProperty("--zoom", { s: 0.92, m: 1, l: 1.12 }[p.size] || 1);
+        var m = p.mode && p.mode !== "system" ? p.mode : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        r.dataset.mode = m; // paper, accent and size are applied by theme.js, which knows the feature flag
       } catch (e) {}
     </script>
   </head>

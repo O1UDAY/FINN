@@ -11,6 +11,9 @@ export default function Watch() {
   const [status, setStatus] = useState(null);
   const [add, setAdd] = useState("");
   const [saved, setSaved] = useState(false);
+  const [addMsg, setAddMsg] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [testMsg, setTestMsg] = useState(null);
 
   useEffect(() => { api.settings().then(setS); api.status().then(setStatus).catch(() => {}); }, []);
 
@@ -69,10 +72,23 @@ export default function Watch() {
             <span key={p}>{p}<button aria-label={`Remove ${p}`} onClick={() => save({ portfolio: s.portfolio.filter((x) => x !== p) })}>remove</button></span>
           ))}
         </div>
-        <form className="search" onSubmit={(e) => { e.preventDefault(); const v = add.trim().toUpperCase(); if (v && !s.portfolio.includes(v)) save({ portfolio: [...s.portfolio, v] }); setAdd(""); }}>
-          <input value={add} onChange={(e) => setAdd(e.target.value)} placeholder="Add an NSE symbol" aria-label="Add an NSE symbol" autoCapitalize="characters" />
-          <button type="submit">Add</button>
+        <form className="search" onSubmit={async (e) => {
+          e.preventDefault();
+          const v = add.trim().toUpperCase();
+          if (!v) return;
+          if (s.portfolio.includes(v)) { setAddMsg({ ok: false, text: `${v} is already in your holdings.` }); return; }
+          setAdding(true); setAddMsg(null);
+          try {
+            const r = await api.addHolding(v);
+            setS(r.settings); setAdd("");
+            setAddMsg({ ok: true, text: `Added ${v}: ${r.price_rows} days of prices and ${r.filings} filings loaded.` });
+          } catch (err) { setAddMsg({ ok: false, text: err.message }); }
+          setAdding(false);
+        }}>
+          <input value={add} onChange={(e) => { setAdd(e.target.value); setAddMsg(null); }} placeholder="Add an NSE symbol" aria-label="Add an NSE symbol" autoCapitalize="characters" />
+          <button type="submit" disabled={adding}>{adding ? "Checking…" : "Add"}</button>
         </form>
+        {addMsg && <p className={"note" + (addMsg.ok ? "" : " warn")} role="status">{addMsg.text}</p>}
       </section>
 
       <section className="sec">
@@ -80,9 +96,14 @@ export default function Watch() {
         <div className="rows">
           <div className="row"><span className="muted">Last updated</span><span>{status?.refreshing ? "Updating…" : status?.last_refresh?.replace("T", " ").slice(0, 16) || "Not yet today"}</span></div>
           <div className="row"><span className="muted">Language model</span><span>{status?.llm?.provider || "None, rules only"}</span></div>
+          <div className="row"><span className="muted">Telegram alerts</span><span>{status?.telegram ? "Connected" : "Not set up"}</span></div>
           <div className="row"><span className="muted">Model spend so far</span><span>${status?.llm?.total_usd?.toFixed(4) ?? "0.0000"}</span></div>
         </div>
-        <p style={{ marginTop: 14 }}><button className="primary" onClick={refresh} disabled={status?.refreshing}>{status?.refreshing ? "Updating…" : "Update now"}</button></p>
+        <p className="btn-row">
+          <button className="primary" onClick={refresh} disabled={status?.refreshing}>{status?.refreshing ? "Updating…" : "Update now"}</button>
+          <button className="secondary" onClick={async () => { setTestMsg(null); const r = await api.testAlert().catch((e) => ({ ok: false, error: e.message })); setTestMsg(r); }}>Send test alert</button>
+        </p>
+        {testMsg && <p className={"note" + (testMsg.ok ? "" : " warn")} role="status">{testMsg.ok ? "Test alert sent. Check Telegram." : testMsg.error}</p>}
       </section>
     </>
   );

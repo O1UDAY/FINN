@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DARK_ONLY, useAppearance } from "./theme";
+import { DARK_ONLY, EXTRA_APPEARANCE, useAppearance } from "./theme";
 
 const MODES = [["system", "Match phone"], ["light", "Light"], ["dark", "Dark"]];
 // Swatch colours are literal so each option previews itself regardless of the current theme.
@@ -32,6 +32,7 @@ export default function Appearance() {
         {DARK_ONLY.has(prefs.paper) && <p className="forced-note">Stocks is always dark, like the app it's modelled on. Pick another paper to use light mode.</p>}
       </fieldset>
 
+      {EXTRA_APPEARANCE && <>
       <fieldset className="field">
         <legend>Paper</legend>
         <div className="swatches">
@@ -72,6 +73,7 @@ export default function Appearance() {
           ))}
         </div>
       </fieldset>
+      </>}
     </section>
   );
 }

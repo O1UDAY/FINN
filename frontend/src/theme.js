@@ -8,7 +8,14 @@ export const ZOOM = { s: 0.92, m: 1, l: 1.12 };
 export const DARK_ONLY = new Set(["stocks"]);
 const media = window.matchMedia("(prefers-color-scheme: dark)");
 
-export const getPrefs = () => ({ ...DEFAULTS, ...local.get("appearance", {}) });
+// Extra papers, accents and text sizes are off by default (build with VITE_EXTRA_APPEARANCE=1 to show them):
+// the product ships one considered look plus dark mode.
+export const EXTRA_APPEARANCE = import.meta.env.VITE_EXTRA_APPEARANCE === "1";
+
+export const getPrefs = () => {
+  const p = { ...DEFAULTS, ...local.get("appearance", {}) };
+  return EXTRA_APPEARANCE ? p : { ...p, paper: DEFAULTS.paper, accent: DEFAULTS.accent, size: DEFAULTS.size };
+};
 
 export function applyPrefs(p = getPrefs()) {
   const root = document.documentElement;

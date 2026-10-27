@@ -304,3 +304,32 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 .kpi-src { font-weight: 600; }
 .kpi a { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; text-decoration: none; }
 .tally { flex-wrap: wrap; row-gap: 4px; }
+.steps { list-style: none; margin: 4px 0 0; padding: 0; font-size: 15px; }
+.steps li { padding: 6px 0 6px 22px; position: relative; color: var(--ink-3); }
+.steps li::before { content: ""; position: absolute; left: 2px; top: 13px; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+.steps li.done { color: var(--ink-2); }
+.steps li.done::before { background: var(--up); border-color: var(--up); }
+.steps li.now { color: var(--ink); font-weight: 600; }
+.steps li.now::before { border-color: var(--claret); background: var(--claret); }
+.snap { color: var(--amber); font-weight: 600; }
+/* Tap targets: every control at least 44×44 */
+.holdings span { display: inline-flex; align-items: center; min-height: 44px; }
+.holdings button { min-height: 44px; min-width: 44px; padding: 0 8px; }
+.ledger .meta { align-items: center; }
+.ledger .meta button, .ledger .meta a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; padding: 0 4px; }
+.recent button { min-height: 44px; padding: 0 2px; }
+.notices li a { display: block; min-height: 44px; }
+.story .actions a, .story .actions button { display: inline-flex; align-items: center; min-height: 44px; }
+.search button { min-height: 44px; min-width: 44px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.primary, .secondary { min-height: 44px; }
+.secondary { border: 1px solid var(--rule-strong); padding: 8px 16px; border-radius: 2px; font-weight: 600; }
+.mode-btn { width: 44px; height: 44px; margin: -10px -10px -10px 0; }
+.segmented label { min-height: 44px; }
+.stepper button { width: 44px; height: 44px; }
+.stepper .v { line-height: 44px; }
+.checks label { min-height: 44px; padding: 0; }
+.sections button { min-height: 44px; min-width: 44px; }
+.recent button { min-width: 44px; }
+.rows .row a { display: inline-flex; align-items: center; min-height: 44px; }
+.rows .row { align-items: center; padding: 2px 0; }
