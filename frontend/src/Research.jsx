@@ -4,7 +4,8 @@ import Masthead from "./Masthead";
 import { Bars, crore, fmt, IconDot, IconDown, IconSearch, IconUp, PairBars } from "./ui";
 
 const SUGGEST = ["TRENT", "PERSISTENT", "KAYNES", "CDSL", "DIXON", "POLYCAB"];
-const VERDICTS = ["delivered", "partial", "missed", "pending"];
+const VERDICTS = ["delivered", "partly", "missed", "too_early", "not_disclosed"];
+const VERDICT_LABEL = { delivered: "Delivered", partly: "Partly", partial: "Partly", missed: "Missed", too_early: "Too early", pending: "Too early", not_disclosed: "Not disclosed" };
 
 export default function Research({ symbol, setSymbol }) {
   const [q, setQ] = useState(symbol || "");
@@ -115,7 +116,7 @@ function Analysis({ a }) {
         <h2>Promises and delivery</h2>
         <p className="dek">What management said on {a.sources.length} {src}, {a.sources.map((s) => s.period).join(", ")}, set against what they reported.</p>
         {pvd.length > 0 && (
-          <div className="tally">{VERDICTS.map((v) => <span key={v}><b>{counts[v]}</b>{v}</span>)}</div>
+          <div className="tally">{VERDICTS.filter((v) => counts[v]).map((v) => <span key={v}><b>{counts[v]}</b>{VERDICT_LABEL[v].toLowerCase()}</span>)}</div>
         )}
         <ul className="ledger">
           {pvd.map((p, i) => <Commitment key={i} p={p} />)}
@@ -163,16 +164,24 @@ function Analysis({ a }) {
 function Commitment({ p }) {
   const [quote, setQuote] = useState(!p.promise);
   const v = p.verdict && p.verdict !== "unverified" ? p.verdict : null;
+  const k = p.kpi;
   return (
     <li>
-      <span className={"verdict v-" + (v || "on")}>{v ? v[0].toUpperCase() + v.slice(1) : "Said on the call"}</span>
+      <span className={"verdict v-" + (v || "on")}>{v ? VERDICT_LABEL[v] || v : "Said on the call"}</span>
       {p.promise && <div className="what">{p.promise}</div>}
       {(p.evidence || p.outcome) && <div className="ev">{p.evidence || p.outcome}</div>}
+      {k && (
+        <div className="kpi">
+          <span className="kpi-src">Reported {k.quarter}{k.page ? `, p. ${k.page}` : ""}:</span> {k.reported_value}
+          {k.quote && <blockquote>{k.quote}</blockquote>}
+          {k.source_doc && <a href={k.source_doc} target="_blank" rel="noreferrer">Open {k.quarter} document</a>}
+        </div>
+      )}
       {p.quote && quote && <blockquote>{p.quote}</blockquote>}
       <div className="meta">
-        <span>{p.said_in}{p.metric ? ` · ${p.metric}` : ""}</span>
+        <span>Said {p.said_in}{p.page ? `, p. ${p.page}` : ""}{p.metric ? ` · ${p.metric}` : ""}</span>
         {p.quote && p.promise && <button onClick={() => setQuote((x) => !x)}>{quote ? "Hide quote" : "Their words"}</button>}
-        {p.url && <a href={p.url} target="_blank" rel="noreferrer">Transcript</a>}
+        {p.url && <a href={p.url} target="_blank" rel="noreferrer">Source</a>}
       </div>
     </li>
   );

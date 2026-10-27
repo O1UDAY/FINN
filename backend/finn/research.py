@@ -221,7 +221,10 @@ def _flag_text(num):
     return "\n".join(flags) or "- none"
 
 
-def analysis(symbol: str, refresh=False) -> dict:
+STEPS = ["Fetching documents", "Extracting guidance", "Checking delivery", "Writing analysis"]
+
+
+def analysis(symbol: str, refresh=False, progress=lambda step: None) -> dict:
     symbol = symbol.upper().strip()
     conn = connect()
     if not refresh:
@@ -229,6 +232,7 @@ def analysis(symbol: str, refresh=False) -> dict:
         if row:
             return json.loads(row["payload"])
 
+    progress(STEPS[0])
     num = numbers(symbol)
     docs, source_kind = _sources(num["documents"])
     per_doc = []
@@ -253,6 +257,7 @@ def analysis(symbol: str, refresh=False) -> dict:
         return out
 
     # Step 2: cheap model structures promises per document.
+    progress(STEPS[1])
     promises = []
     for d in per_doc:
         if not d["candidates"]:
@@ -272,9 +277,18 @@ def analysis(symbol: str, refresh=False) -> dict:
 
     # Step 2b: what management later said it actually achieved. Operating KPIs (stores, like-for-like growth, brand
     # margins) never appear in the financial tables, so without this every KPI promise ends up "no data".
-    reported = reported_kpis(num["name"], promises, per_doc, source_kind)
+    progress(STEPS[2])
+    # Companies often put quarterly KPI tables in the investor presentation rather than the call, so scan both.
+    kpi_docs = list(per_doc)
+    if source_kind == "transcript":
+        for d in [x for x in num["documents"] if x["kind"] == "presentation"][:4]:
+            pg = pages(d["url"])
+            if pg:
+                kpi_docs.append({"period": d["period"], "url": d["url"], "pages": pg, "kind": "presentation"})
+    reported = reported_kpis(num["name"], promises, kpi_docs, source_kind)
 
     # Step 3: one strong call does the judging.
+    progress(STEPS[3])
     actuals = {"quarterly": num["quarters"], "annual": num["trajectory"], "balance": num["balance"], "cash": num["cash"]}
     judged = llm.complete_json(
         f"Company: {num['name']} ({symbol}). Use ONLY the material below - no outside knowledge.\n"
@@ -351,18 +365,33 @@ def _keywords(p):
     return words
 
 
+ANALYST = re.compile(r"\b(can you|could you|wanted to understand|want to understand|like to understand|my question|"
+                     r"just to understand|trying to understand|i wanted|if you can|would you|welcome to)\b", re.I)
+GENERIC_KW = set("growth revenue sales topline margin ebitda ebit business company brand brands".split())
+
+
 def backward_statements(pg, keywords, limit_chars=3000):
-    """Sentences reporting what happened, that mention one of the promise keywords and a number, with their page."""
-    keep, used = [], 0
+    """Sentences reporting what happened, that mention promise keywords and a number, with their page. Ranked by how
+    specifically they match (stores, LFL, capex beat 'growth'), so a 3k budget isn't spent on generic lines."""
+    scored = []
     for page_no, t in enumerate(pg, 1):
-        for s in _sentences(t):
+        # Slides have no full stops: split on line breaks too, so a KPI table row counts as a statement.
+        for s in [x.strip() for chunk in t.split("\n") for x in _sentences(chunk)]:
             low = s.lower()
-            if 25 < len(s) < 400 and re.search(r"\d", s) and REPORTED.search(s) and any(k in low for k in keywords):
-                if used + len(s) > limit_chars:
-                    return keep
-                keep.append((page_no, s))
-                used += len(s)
-    return keep
+            if not (25 < len(s) < 400 and re.search(r"\d", s) and REPORTED.search(s)):
+                continue
+            if "?" in s or ANALYST.search(s):  # analysts quoting numbers back are not management reporting them
+                continue
+            score = sum(1 if k in GENERIC_KW else 3 for k in keywords if k in low)
+            if score:
+                scored.append((score, page_no, s))
+    keep, used = [], 0
+    for score, page_no, s in sorted(scored, key=lambda x: -x[0]):
+        if used + len(s) > limit_chars:
+            break
+        keep.append((page_no, s))
+        used += len(s)
+    return sorted(keep)
 
 
 def reported_kpis(name, promises, per_doc, source_kind):
@@ -380,18 +409,36 @@ def reported_kpis(name, promises, per_doc, source_kind):
         got = llm.complete_json(
             f"Earlier, management of {name} made these promises:\n"
             + "\n".join(f"{p['id']}: {p.get('metric')}: {p['promise']} (said {p['said_in']})" for p in earlier)
-            + f"\n\nBelow are sentences from their {d['period']} {source_kind}, each with its page. For each promise, report "
-            "what management says it actually achieved, only if a sentence states it. Do not infer.\n"
+            + f"\n\nBelow are lines from their {d['period']} {d.get('kind', source_kind)}, each with its page. Report what management "
+            "says it actually achieved: one entry per matching line (quarterly and full-year figures both count), only "
+            "where a line states it. Do not infer, and omit promises with no matching line.\n"
             '[{"id": "P1", "reported_value": "e.g. opened 52 stores in the quarter", "quote": "exact words, max 25", "page": 7}]\n\n'
             + "\n".join(f"[p{pn}] {s}" for pn, s in lines),
             tier="cheap", max_tokens=900)
         for k in got or []:
-            if isinstance(k, dict) and k.get("id") and k.get("reported_value"):
+            val = str(k.get("reported_value") or "").strip().lower() if isinstance(k, dict) else ""
+            if is_placeholder(val):
+                continue  # the model is told to skip these; it doesn't always
+            if isinstance(k, dict) and k.get("id"):
                 out.setdefault(k["id"], []).append({"metric": next((p.get("metric") for p in promises if p["id"] == k["id"]), None),
                                                     "reported_value": k["reported_value"], "quarter": d["period"],
                                                     "quote": " ".join(str(k.get("quote", "")).split()[:25]),
-                                                    "page": k.get("page"), "source_doc": d["url"]})
+                                                    "page": _page_int(k.get("page")), "source_doc": d["url"],
+                                                    "doc_kind": d.get("kind", source_kind)})
     return out
+
+
+PLACEHOLDER = re.compile(r"^\W*(n/?a|none|nil|-+|unknown)\W*$|^(not|no)\b.*\b(stated|reported|mentioned|disclosed|available|given|found)|reaffirm", re.I)
+
+
+def _page_int(v):
+    m = re.search(r"\d+", str(v or ""))
+    return int(m.group(0)) if m and int(m.group(0)) > 0 else None
+
+
+def is_placeholder(val) -> bool:
+    """The model is told to skip promises with no evidence; it sometimes answers 'not mentioned' instead."""
+    return not str(val or "").strip() or bool(PLACEHOLDER.search(str(val).strip()))
 
 
 def attach_evidence(entries, promises, reported):
@@ -402,9 +449,12 @@ def attach_evidence(entries, promises, reported):
         src = by_id[ids[0]] if ids else next((p for p in promises if p["said_in"] == e.get("said_in")), None)
         if src:
             e["url"], e["page"] = src["url"], src.get("page")
-        kpis = sorted((k for i in ids for k in reported.get(i, [])), key=lambda k: k["quarter"])
+        from .screener import _period_key
+        kpis = sorted((k for i in ids for k in reported.get(i, []) if not is_placeholder(k.get("reported_value"))),
+                      key=lambda k: _period_key(k["quarter"]))
         if kpis:
-            e["kpi"] = kpis[-1]
+            e["kpi"] = kpis[-1]          # latest, shown first
+            e["kpis"] = kpis[-4:]        # the trail, for the record
             if e.get("verdict") == "not_disclosed":  # a later call does mention it, so "not disclosed" is wrong
                 e["verdict"] = "too_early"
                 e["evidence"] = (e.get("evidence") or "") + f" Later call reports: {kpis[-1]['reported_value']}."
