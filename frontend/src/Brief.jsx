@@ -4,9 +4,8 @@ import Card from "./Card";
 import { ago, cat } from "./ui";
 
 const WINDOWS = [
-  { h: 24, label: "Last 24h" }, { h: 72, label: "3 days" }, { h: 168, label: "Week" }, { h: 720, label: "Month" },
+  { h: 24, label: "Since yesterday" }, { h: 72, label: "3 days" }, { h: 168, label: "This week" }, { h: 720, label: "This month" },
 ];
-const WORDS = ["Nothing", "One thing", "Two things", "Three things", "Four things", "Five things", "Six things", "Seven things", "Eight things", "Nine things"];
 
 export default function Brief({ onAsk }) {
   const [hours, setHours] = useState(local.get("hours", 24));
@@ -25,58 +24,60 @@ export default function Brief({ onAsk }) {
 
   const open = useMemo(() => (data?.cards || []).filter((c) => !done.has(c.id)), [data, done]);
   const total = data?.cards.length || 0;
-  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
+  const holdings = data?.settings.portfolio.length;
 
   return (
     <>
-      <div className="mast"><span className="brand">FINN · BRIEF</span><span className="date">{today}</span></div>
-      <h1 className="headline">
-        {!data ? "Reading the tape…" : open.length === 0 ? <>All <em>clear.</em></> :
-          <><em>{open.length < 10 ? WORDS[open.length] : open.length + " things"}</em> {open.length === 1 ? "matters" : "matter"}.</>}
-      </h1>
-      <p className="sub">
-        {data ? <>{data.counts.alerts} hit your alert rules · {data.counts.routine} routine filings folded away</> : " "}
+      <header className="mast">
+        <span className="wordmark">FINN</span>
+        <span className="dateline">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+      </header>
+
+      <h1 className="page-title">The Brief</h1>
+      <p className="standfirst">
+        {!data ? " " : open.length
+          ? <>{open.length} {open.length === 1 ? "item" : "items"} across your {holdings} holdings{data.counts.alerts ? `, ${data.counts.alerts} matching your alerts` : ""}. {data.counts.routine} routine filings are at the bottom.</>
+          : total ? "You've read everything in this window." : "No material filings or unusual moves in this window."}
       </p>
 
-      <div className="chips">
-        {WINDOWS.map((w) => <button key={w.h} className={"chip" + (hours === w.h ? " on" : "")} onClick={() => setHours(w.h)}>{w.label}</button>)}
-      </div>
+      <nav className="sections" aria-label="Time window">
+        {WINDOWS.map((w) => <button key={w.h} className={hours === w.h ? "on" : ""} onClick={() => setHours(w.h)}>{w.label}</button>)}
+      </nav>
 
-      {total > 0 && <div className="progress"><i style={{ width: `${((total - open.length) / total) * 100}%` }} /></div>}
-      {err && <div className="panel note warn">Couldn't load the brief: {err}</div>}
-      {!data && !err && <div className="stack">{[0, 1, 2].map((i) => <div key={i} className="skel" style={{ height: 92 }} />)}</div>}
+      {err && <p className="note warn">The brief didn't load ({err}). Pull down or switch window to try again.</p>}
+      {!data && !err && <div className="loading">Collecting filings</div>}
 
-      <div className="stack">
-        {open.map((c) => <Card key={c.id} item={c} onDone={clear} onAsk={onAsk} />)}
-      </div>
+      <ul className="story-list">
+        {open.map((c, i) => <Card key={c.id} item={c} lead={i === 0} onDone={clear} onAsk={onAsk} />)}
+      </ul>
 
-      {data && open.length === 0 && (
+      {data && total > 0 && open.length === 0 && (
         <div className="empty">
-          <div className="big">Nothing else needs you.</div>
-          <p className="muted">{total ? `You cleared ${total} item${total > 1 ? "s" : ""}.` : "No material filings or unusual moves in this window."}</p>
-          {total > 0 && <button className="btn" onClick={restore}>Bring them back</button>}
+          <h2>You're up to date.</h2>
+          <p>{total} {total === 1 ? "item" : "items"} read.</p>
+          <button className="link-btn" onClick={restore}>Show them again</button>
         </div>
       )}
 
       {data?.routine.length > 0 && (
-        <div className="fold">
-          <button onClick={() => setShowRoutine((s) => !s)}>
-            <span>{data.routine.length} routine filings</span><span className="faint">{showRoutine ? "Hide" : "Show"}</span>
+        <section className="notices">
+          <button onClick={() => setShowRoutine((s) => !s)} aria-expanded={showRoutine}>
+            <span>Routine filings ({data.routine.length})</span><span>{showRoutine ? "Hide" : "Show"}</span>
           </button>
           {showRoutine && (
             <ul>
               {data.routine.map((r) => (
                 <li key={r.id}>
-                  <span className="tick">{r.symbol}</span>
-                  <a href={r.url} target="_blank" rel="noreferrer" style={{ flex: 1, textDecoration: "none" }} className="muted">{r.text || r.subject}</a>
-                  <span className="faint mono" style={{ fontSize: 11 }}>{cat(r.category).label} · {ago(r.ts)}</span>
+                  <span className="co">{r.symbol}</span>
+                  <a href={r.url} target="_blank" rel="noreferrer">{r.text || r.subject}</a>
+                  <span className="when">{cat(r.category)}, {ago(r.ts).toLowerCase()}</span>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </section>
       )}
-      <p className="note" style={{ textAlign: "center", marginTop: 18 }}>Swipe a card right to clear it · tap to open</p>
+      {open.length > 1 && <p className="hint">Swipe a story right when you're done with it.</p>}
     </>
   );
 }

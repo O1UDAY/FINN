@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, local } from "./api";
-import { Bars, crore, fmt, PairBars } from "./ui";
+import { Bars, crore, fmt, IconDot, IconDown, IconSearch, IconUp, PairBars } from "./ui";
 
 const SUGGEST = ["TRENT", "PERSISTENT", "KAYNES", "CDSL", "DIXON", "POLYCAB"];
 const VERDICTS = ["delivered", "partial", "missed", "pending"];
@@ -24,161 +24,158 @@ export default function Research({ symbol, setSymbol }) {
 
   return (
     <>
-      <div className="mast"><span className="brand">FINN · INTERROGATE</span><span className="date">primary sources only</span></div>
-      <form className="search" onSubmit={(e) => { e.preventDefault(); go(); }}>
-        <span className="faint mono">NSE:</span>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Any ticker" autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
-        <button className="btn gold" type="submit">Ask</button>
+      <header className="mast">
+        <span className="wordmark">FINN</span>
+        <span className="dateline">Company research</span>
+      </header>
+      <form className="search" role="search" onSubmit={(e) => { e.preventDefault(); go(); }}>
+        <IconSearch />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="NSE symbol, e.g. TRENT" aria-label="NSE symbol"
+          autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
+        <button type="submit">Search</button>
       </form>
-      <div className="chips">
+      <div className="recent">
         {[...new Set([...recent, ...SUGGEST])].slice(0, 8).map((s) => (
-          <button key={s} className={"chip" + (s === symbol ? " on" : "")} onClick={() => go(s)}>{s}</button>
+          <button key={s} className={s === symbol ? "on" : ""} onClick={() => go(s)}>{s}</button>
         ))}
       </div>
 
       {!symbol && (
-        <div className="empty" style={{ paddingTop: 30 }}>
-          <div className="big">Hold management to their word.</div>
-          <p className="muted">Pick a ticker. FINN reads its last four concalls, extracts what was promised, and checks it against what was reported.</p>
+        <div className="empty">
+          <h2>Did they do what they said?</h2>
+          <p>Pick a company. FINN reads its last four earnings calls, lists what management committed to, and checks each one against the reported numbers.</p>
         </div>
       )}
-      {err && <div className="panel note warn">{err}</div>}
-      {symbol && !num && !err && <div className="skel" style={{ height: 160, marginTop: 10 }} />}
-      {num && <Numbers n={num} />}
-      {num && <Analysis a={ana} n={num} />}
+      {err && <p className="note warn">{err === `${symbol} not found on screener.in` ? `No listed company found for “${symbol}”. Check the NSE symbol.` : err}</p>}
+      {symbol && !num && !err && <div className="loading">Pulling {symbol}'s financials</div>}
+      {num && <Header n={num} />}
+      {num && <Analysis a={ana} />}
       {num && <Charts n={num} />}
       {num && <Sources n={num} a={ana} />}
     </>
   );
 }
 
-function Numbers({ n }) {
+function Header({ n }) {
   const s = n.snapshot;
   return (
     <>
       <h1 className="co-name">{n.name}</h1>
-      <div className="muted mono" style={{ fontSize: 13 }}>{n.symbol} · ₹{fmt(s["Current Price"], 1)}</div>
-      <div className="stats">
-        <div><div className="k">Mkt cap</div><div className="v">{crore(s["Market Cap"])}</div></div>
+      <div className="co-line">NSE: {n.symbol} · ₹{fmt(s["Current Price"], 2)}</div>
+      <div className="keyfigs">
+        <div><div className="k">Market cap</div><div className="v">{crore(s["Market Cap"])}</div></div>
         <div><div className="k">P/E</div><div className="v">{fmt(s["Stock P/E"], 1)}</div></div>
         <div><div className="k">{n.lender ? "ROE" : "ROCE"}</div><div className="v">{fmt(n.lender ? s.ROE : s.ROCE, 1)}%</div></div>
-        <div><div className="k">TTM sales</div><div className="v">{crore(n.ttm.sales)}</div></div>
-        <div><div className="k">TTM profit</div><div className="v">{crore(n.ttm.pat)}</div></div>
-        <div><div className="k">3y sales CAGR</div><div className="v">{n.trajectory.sales_cagr_3y ?? "—"}%</div></div>
+        <div><div className="k">Sales, last 12m</div><div className="v">{crore(n.ttm.sales)}</div></div>
+        <div><div className="k">Profit, last 12m</div><div className="v">{crore(n.ttm.pat)}</div></div>
+        <div><div className="k">Sales growth, 3y</div><div className="v">{n.trajectory.sales_cagr_3y ?? "–"}% a yr</div></div>
       </div>
       {n.signals.length > 0 && (
-        <div className="sec">
-          <h3>The read <span>computed, not generated</span></h3>
-          <div className="panel signals">
+        <section className="sec">
+          <h2>What the numbers say</h2>
+          <ul className="points">
             {n.signals.map((x) => (
-              <div className="signal" key={x.text}>
-                <i style={{ background: x.kind === "good" ? "var(--up)" : x.kind === "bad" ? "var(--down)" : "var(--ink-3)" }} />{x.text}
-              </div>
+              <li key={x.text}>
+                {x.kind === "good" ? <IconUp className="up" /> : x.kind === "bad" ? <IconDown className="down" /> : <IconDot className="faint" />}
+                <span>{x.text}</span>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
     </>
   );
 }
 
-function Analysis({ a, n }) {
+function Analysis({ a }) {
   if (!a) {
     return (
-      <div className="sec">
-        <h3>Promised vs delivered</h3>
-        <div className="skel" style={{ height: 120 }} />
-        <div className="loading-line">reading the last four {""}concalls · extracting promises · checking against reported numbers…</div>
-      </div>
+      <section className="sec">
+        <h2>Promises and delivery</h2>
+        <div className="loading">Reading the last four earnings calls. This takes a minute the first time.</div>
+      </section>
     );
   }
-  if (a.error) return <div className="sec panel note warn">{a.error}</div>;
+  if (a.error) return <p className="note warn">The earnings-call analysis failed: {a.error}</p>;
 
   const pvd = a.promised_vs_delivered || [];
   const raw = a.promises || [];
   const counts = Object.fromEntries(VERDICTS.map((v) => [v, pvd.filter((p) => p.verdict === v).length]));
+  const src = a.source_kind === "transcript" ? "earnings-call transcripts" : "investor presentations (this company doesn't publish call transcripts)";
   return (
     <>
       {a.business?.summary && (
-        <div className="sec">
-          <h3>Business</h3>
-          <div className="panel">
-            <div style={{ lineHeight: 1.5 }}>{a.business.summary}</div>
-            {a.business.segments?.length > 0 && <div className="wrap" style={{ marginTop: 10 }}>{a.business.segments.map((s) => <span key={s} className="pill" style={{ margin: 0 }}>{s}</span>)}</div>}
-          </div>
-        </div>
+        <section className="sec">
+          <h2>The business</h2>
+          <p className="prose">{a.business.summary}</p>
+          {a.business.segments?.length > 0 && <p className="note">{a.business.segments.join(" · ")}</p>}
+        </section>
       )}
 
-      <div className="sec">
-        <h2>Promised <span className="faint">vs</span> delivered</h2>
-        <div className="note" style={{ marginTop: 0 }}>
-          From {a.sources.length} {a.source_kind === "transcript" ? "concall transcripts" : "investor presentations (no concall transcripts filed)"} · {a.sources.map((s) => s.period).join(", ")}
-        </div>
+      <section className="sec">
+        <h2>Promises and delivery</h2>
+        <p className="dek">What management said on {a.sources.length} {src}, {a.sources.map((s) => s.period).join(", ")}, set against what they reported.</p>
         {pvd.length > 0 && (
-          <div className="score">
-            {VERDICTS.map((v) => <div key={v}><div className={"n " + (v === "delivered" ? "up" : v === "missed" ? "down" : "")}>{counts[v]}</div><div className="l">{v}</div></div>)}
-          </div>
+          <div className="tally">{VERDICTS.map((v) => <span key={v}><b>{counts[v]}</b>{v}</span>)}</div>
         )}
-        <div className="panel">
-          {pvd.map((p, i) => <PromiseRow key={i} p={p} />)}
-          {!pvd.length && raw.map((p, i) => <PromiseRow key={i} p={{ ...p, promise: p.promise || null }} />)}
-          {!pvd.length && !raw.length && <div className="muted">No checkable forward-looking statements found in the filed documents.</div>}
-        </div>
-        {a.note && <div className="note warn">{a.note}</div>}
-      </div>
+        <ul className="ledger">
+          {pvd.map((p, i) => <Commitment key={i} p={p} />)}
+          {!pvd.length && raw.map((p, i) => <Commitment key={i} p={p} />)}
+        </ul>
+        {!pvd.length && !raw.length && <p className="muted">No specific, checkable commitments in the filed documents.</p>}
+        {a.note && <p className="note warn">{a.note}</p>}
+      </section>
 
       {a.narrative_vs_numbers?.length > 0 && (
-        <div className="sec">
-          <h3>Narrative vs numbers</h3>
-          <div className="panel">
+        <section className="sec">
+          <h2>Story against numbers</h2>
+          <ul className="ledger">
             {a.narrative_vs_numbers.map((x, i) => (
-              <div className="promise" key={i}>
-                <div className="top"><span className={"verdict " + (x.agrees ? "v-delivered" : "v-missed")}>{x.agrees ? "agrees" : "diverges"}</span></div>
+              <li key={i}>
+                <span className={"verdict " + (x.agrees ? "v-delivered" : "v-missed")}>{x.agrees ? "Holds up" : "Doesn't add up"}</span>
                 <div className="what">{x.claim}</div>
                 <div className="ev">{x.reality}</div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
 
       {a.guidance?.length > 0 && (
-        <div className="sec">
-          <h3>Current guidance</h3>
-          <div className="panel">
-            {a.guidance.map((g, i) => <div className="row" key={i}><span className="muted">{g.metric}</span><span style={{ textAlign: "right" }}>{g.guidance}</span></div>)}
-          </div>
-        </div>
+        <section className="sec">
+          <h2>Current guidance</h2>
+          <div className="rows">{a.guidance.map((g, i) => <div className="row" key={i}><span className="muted">{g.metric}</span><span>{g.guidance}</span></div>)}</div>
+        </section>
       )}
 
       {(a.bull?.length > 0 || a.bear?.length > 0) && (
-        <div className="sec">
-          <h3>The case</h3>
+        <section className="sec">
+          <h2>The case for and against</h2>
           <div className="case">
-            <div className="panel"><h4 className="up">Bull</h4><ul>{(a.bull || []).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
-            <div className="panel"><h4 className="down">Bear</h4><ul>{(a.bear || []).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+            <div><h3 className="up">For</h3><ul>{(a.bull || []).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+            <div><h3 className="down">Against</h3><ul>{(a.bear || []).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
           </div>
-        </div>
+        </section>
       )}
     </>
   );
 }
 
-function PromiseRow({ p }) {
-  const [showQuote, setShowQuote] = useState(!p.promise);
+function Commitment({ p }) {
+  const [quote, setQuote] = useState(!p.promise);
+  const v = p.verdict && p.verdict !== "unverified" ? p.verdict : null;
   return (
-    <div className="promise">
-      <div className="top">
-        <span className={"verdict v-" + (p.verdict || "unverified")}>{p.verdict || "on record"}</span>
-        <span className="mono">{p.said_in}</span>
-        {p.metric && <span>· {p.metric}</span>}
-      </div>
+    <li>
+      <span className={"verdict v-" + (v || "on")}>{v ? v[0].toUpperCase() + v.slice(1) : "Said on the call"}</span>
       {p.promise && <div className="what">{p.promise}</div>}
       {(p.evidence || p.outcome) && <div className="ev">{p.evidence || p.outcome}</div>}
-      {p.quote && p.promise && !showQuote && <button className="src" onClick={() => setShowQuote(true)}>What they said ›</button>}
-      {p.quote && showQuote && <div className="quote">“{p.quote}”</div>}
-      {p.url && <a className="src" style={{ marginLeft: p.quote && !showQuote ? 12 : 0 }} href={p.url} target="_blank" rel="noreferrer">Source ↗</a>}
-    </div>
+      {p.quote && quote && <blockquote>{p.quote}</blockquote>}
+      <div className="meta">
+        <span>{p.said_in}{p.metric ? ` · ${p.metric}` : ""}</span>
+        {p.quote && p.promise && <button onClick={() => setQuote((x) => !x)}>{quote ? "Hide quote" : "Their words"}</button>}
+        {p.url && <a href={p.url} target="_blank" rel="noreferrer">Transcript</a>}
+      </div>
+    </li>
   );
 }
 
@@ -186,52 +183,42 @@ function Charts({ n }) {
   const pct = (x) => `${fmt(x)}%`;
   return (
     <>
-      <div className="sec">
-        <h3>Trajectory <span>annual, ₹ cr</span></h3>
-        <div className="panel">
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Revenue</div>
-          <Bars series={n.trajectory.sales} />
-          <div className="muted" style={{ fontSize: 12, margin: "14px 0 6px" }}>Profit after tax</div>
-          <Bars series={n.trajectory.pat} />
-          {!n.lender && <><div className="muted" style={{ fontSize: 12, margin: "14px 0 6px" }}>Operating margin</div><Bars series={n.trajectory.opm} format={pct} /></>}
-        </div>
-      </div>
-      <div className="sec">
-        <h3>Last 8 quarters <span>revenue, ₹ cr</span></h3>
-        <div className="panel"><Bars series={n.quarters.sales} /></div>
-      </div>
+      <section className="sec">
+        <h2>Over the years</h2>
+        <div className="chart-title">Revenue <span>₹ cr, by fiscal year</span></div>
+        <Bars series={n.trajectory.sales} />
+        <div className="chart-title">Profit after tax <span>₹ cr</span></div>
+        <Bars series={n.trajectory.pat} />
+        {!n.lender && <><div className="chart-title">Operating margin <span>%</span></div><Bars series={n.trajectory.opm} format={pct} /></>}
+        <div className="chart-title">Revenue, last eight quarters <span>₹ cr</span></div>
+        <Bars series={n.quarters.sales} />
+      </section>
       {!n.lender && (
-        <div className="sec">
-          <h3>Cash quality <span>{n.cash.conversion != null ? `CFO/PAT ${Math.round(n.cash.conversion * 100)}%` : ""}</span></h3>
-          <div className="panel"><PairBars a={n.cash.cfo} b={n.cash.pat} la="Cash from operations" lb="Reported profit" /></div>
-        </div>
-      )}
-      {!n.lender && (
-        <div className="sec">
-          <h3>Balance sheet</h3>
-          <div className="panel">
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Debt / equity</div>
-            <Bars series={n.balance.de} format={(x) => fmt(x, 2)} />
-            <div className="muted" style={{ fontSize: 12, margin: "14px 0 6px" }}>Cash conversion cycle (days)</div>
-            <Bars series={n.balance.ccc} />
-          </div>
-        </div>
+        <section className="sec">
+          <h2>Cash and debt</h2>
+          <div className="chart-title">Does profit turn into cash? <span>{n.cash.conversion != null ? `${Math.round(n.cash.conversion * 100)}% over 5 yrs` : ""}</span></div>
+          <PairBars a={n.cash.cfo} b={n.cash.pat} la="Cash from operations" lb="Reported profit" />
+          <div className="chart-title">Debt to equity <span>times</span></div>
+          <Bars series={n.balance.de} format={(x) => fmt(x, 2)} />
+          <div className="chart-title">Cash conversion cycle <span>days</span></div>
+          <Bars series={n.balance.ccc} />
+        </section>
       )}
     </>
   );
 }
 
 function Sources({ n, a }) {
-  const docs = n.documents.filter((d) => d.kind !== "annual_report").slice(0, 6);
   const ar = n.documents.find((d) => d.kind === "annual_report");
+  const docs = n.documents.filter((d) => d.kind !== "annual_report").slice(0, 5);
   return (
-    <div className="sec">
-      <h3>Primary sources</h3>
-      <div className="panel">
-        {ar && <div className="row"><span>{ar.period}</span><a className="src" href={ar.url} target="_blank" rel="noreferrer">Open ↗</a></div>}
-        {docs.map((d) => <div className="row" key={d.url}><span>{d.period} <span className="faint">· {d.kind}</span></span><a className="src" href={d.url} target="_blank" rel="noreferrer">Open ↗</a></div>)}
+    <section className="sec">
+      <h2>Sources</h2>
+      <div className="rows">
+        {ar && <div className="row"><span>{ar.period}</span><a href={ar.url} target="_blank" rel="noreferrer">Open PDF</a></div>}
+        {docs.map((d) => <div className="row" key={d.url}><span>{d.kind === "transcript" ? "Earnings call" : "Investor presentation"}, {d.period}</span><a href={d.url} target="_blank" rel="noreferrer">Open PDF</a></div>)}
       </div>
-      <div className="note">Numbers: screener.in tables compiled from exchange filings. Judgement: {a?.llm ? "LLM over transcripts, cached" : "no LLM configured"}. No news, no broker notes.</div>
-    </div>
+      <p className="note">Figures from screener.in, compiled from exchange filings. {a?.llm ? "Commentary read from the company's own transcripts." : "No language model connected, so commitments are shown without verdicts."} No news or broker research is used.</p>
+    </section>
   );
 }

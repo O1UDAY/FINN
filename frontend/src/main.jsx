@@ -3,8 +3,15 @@ import { createRoot } from "react-dom/client";
 import { local } from "./api";
 import Brief from "./Brief";
 import Research from "./Research";
+import { IconAlerts, IconBrief, IconResearch } from "./ui";
 import Watch from "./Watch";
 import "./styles.css";
+
+const TABS = [
+  { id: "brief", label: "Brief", Icon: IconBrief },
+  { id: "research", label: "Research", Icon: IconResearch },
+  { id: "watch", label: "Alerts", Icon: IconAlerts },
+];
 
 function App() {
   const [tab, setTab] = useState(local.get("tab", "brief"));
@@ -13,16 +20,22 @@ function App() {
   const ask = (s) => { setSymbol(s); go("research"); };
 
   return (
-    <div className="app">
-      {tab === "brief" && <Brief onAsk={ask} />}
-      {tab === "research" && <Research symbol={symbol} setSymbol={setSymbol} />}
-      {tab === "watch" && <Watch />}
-      <nav className="tabs">
-        <button className={tab === "brief" ? "on" : ""} onClick={() => go("brief")}>Brief</button>
-        <button className={tab === "research" ? "on" : ""} onClick={() => go("research")}>Interrogate</button>
-        <button className={tab === "watch" ? "on" : ""} onClick={() => go("watch")}>Watch</button>
+    <>
+      <main className="app">
+        {tab === "brief" && <Brief onAsk={ask} />}
+        {tab === "research" && <Research symbol={symbol} setSymbol={setSymbol} />}
+        {tab === "watch" && <Watch />}
+      </main>
+      <nav className="tabs" aria-label="Sections">
+        <div>
+          {TABS.map(({ id, label, Icon }) => (
+            <button key={id} className={tab === id ? "on" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => go(id)}>
+              <Icon />{label}
+            </button>
+          ))}
+        </div>
       </nav>
-    </div>
+    </>
   );
 }
 

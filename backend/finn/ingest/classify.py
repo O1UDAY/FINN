@@ -45,6 +45,6 @@ def classify(subject: str, detail: str = "") -> tuple[str | None, int]:
         if rx.search(text):
             # A board-meeting date for results is a calendar entry, not news; rank it like routine scheduling.
             if cat == "results" and NOTICE.search(text):
-                return cat, 30
+                return cat, 25
             return cat, IMPORTANCE[cat]
     return None, 30  # unknown: candidate for LLM fallback
