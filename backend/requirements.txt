@@ -1,0 +1,6 @@
+yfinance>=0.2.60
+requests
+beautifulsoup4
+fastapi
+uvicorn
+pymupdf
