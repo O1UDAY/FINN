@@ -7,6 +7,8 @@ RULES = [
     ("unclassified", r"trading window|depositories and participants|allotment of securities|esop|esos|compliance certificate"),
     ("press_release", r"bagging|receiving of orders|order win|contract"),
     ("M&A", r"initial public offer|red herring"),
+    ("agm_egm", r"sc?rutini[sz]er|voting results"),  # filings misspell it "Srutinizer"
+    ("agm_egm", r"scrutini[sz]er"),
     ("earnings_call", r"earnings call|conference call|concall|analysts?/institutional investor meet.*(transcript|audio|recording)|transcript"),
     ("results", r"financial results|outcome of board meeting.*result|quarterly results|audited results|unaudited|results"),
     ("management_change", r"resign|appointment|cessation|change in (director|management|kmp)|chief (executive|financial)|\bceo\b|\bcfo\b|managing director|re-appoint"),
@@ -26,6 +28,7 @@ RULES = [
     ("unclassified", r"esop|esos|trading window|compliance certificate|reg(ulation)? ?74|newspaper|loss of share|duplicate share|esg|brsr|certificate"),
 ]
 COMPILED = [(c, re.compile(p, re.I)) for c, p in RULES]
+NOTICE = re.compile(r"to announce|is scheduled|scheduled on|to consider and approve|intimation of board meeting|will be held|prior intimation", re.I)
 
 # 0-100: how much a category typically deserves an investor's attention.
 IMPORTANCE = {
@@ -40,5 +43,8 @@ def classify(subject: str, detail: str = "") -> tuple[str | None, int]:
     text = f"{subject} {detail}"
     for cat, rx in COMPILED:
         if rx.search(text):
+            # A board-meeting date for results is a calendar entry, not news; rank it like routine scheduling.
+            if cat == "results" and NOTICE.search(text):
+                return cat, 30
             return cat, IMPORTANCE[cat]
     return None, 30  # unknown: candidate for LLM fallback

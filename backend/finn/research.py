@@ -81,6 +81,14 @@ def numbers(symbol: str) -> dict:
     if not lender and len(opm) >= 3 and None not in (opm[-1], opm[-3]) and abs(opm[-1] - opm[-3]) >= 2:
         sig("good" if opm[-1] > opm[-3] else "bad", f"Margin {'expanding' if opm[-1] > opm[-3] else 'compressing'}: {opm[-3]:.0f}% → {opm[-1]:.0f}%")
 
+    # Annual margins lag; the latest quarter against the prior four catches a turn the annual series hides.
+    qopm = [x for x in (_series(q, "OPM %") or []) if x is not None]
+    if not lender and len(qopm) >= 5:
+        base = sum(qopm[-5:-1]) / 4
+        if abs(qopm[-1] - base) >= 2.5:
+            sig("good" if qopm[-1] > base else "bad",
+                f"Latest-quarter margin {qopm[-1]:.0f}% vs {base:.0f}% avg of prior 4 quarters")
+
     qcols = q["cols"] if q else []
     return {
         "symbol": c["symbol"], "name": c["name"], "lender": lender,
@@ -171,7 +179,10 @@ def analysis(symbol: str, refresh=False) -> dict:
     # Step 3: one strong call does the judging.
     actuals = {"quarterly": num["quarters"], "annual": num["trajectory"], "balance": num["balance"], "cash": num["cash"]}
     judged = llm.complete_json(
-        f"Company: {num['name']} ({symbol}). Use ONLY the material below - no outside knowledge.\n\n"
+        f"Company: {num['name']} ({symbol}). Use ONLY the material below - no outside knowledge.\n"
+        f"Today is {datetime.now():%d %b %Y}; the latest reported quarter is {(num['quarters']['sales'] or [{}])[-1].get('period', 'unknown')}. "
+        "A promise whose horizon is after that quarter is 'pending', however it is trending; say which way in the evidence.\n"
+        "Note: reported margins are operating (EBITDA) margins; flag it if management guided on a different margin.\n\n"
         f"OPENING OF LATEST {source_kind.upper()} (for business description):\n{opening[:6000]}\n\n"
         f"MANAGEMENT PROMISES (oldest calls are the most checkable):\n{json.dumps(promises, ensure_ascii=False)[:9000]}\n\n"
         f"REPORTED NUMBERS (₹ crore, % for margins):\n{json.dumps(actuals)[:7000]}\n\n"
@@ -192,9 +203,12 @@ def analysis(symbol: str, refresh=False) -> dict:
         for p in judged.get("promised_vs_delivered", []):
             p["url"] = urls.get(p.get("said_in"))
         out.update(judged)
-    else:
-        out["promises"] = promises
-    _save(conn, symbol, out)
+        _save(conn, symbol, out)
+        return out
+    # Judging failed (quota, outage, unparseable): show what we have, but don't cache it, so the next open retries.
+    out["promises"] = promises or [{"said_in": d["period"], "quote": q, "url": d["url"], "verdict": "unverified"}
+                                   for d in per_doc for q in d["candidates"][:4]]
+    out["note"] = "The model didn't return a verdict this time; showing extracted statements. Re-open to retry."
     return out
 
 

@@ -57,3 +57,12 @@ backend/
   finn/ingest/*          prices, NSE announcements, rule classifier
 frontend/src/            React PWA: Brief, Card, Research, Watch
 ```
+
+## Testing the LLM paths without a key (replay mode)
+`FINN_LLM_PROVIDER=replay` writes every prompt FINN would send to `backend/data/replay/<hash>.prompt` and reads the answer from `<hash>.answer`. The fixtures in that folder were answered by hand from the source documents. They exercise the full pipeline: page selection → prompt → JSON parsing → grounding checks → caching → UI. They also caught real bugs before any key existed:
+- Results extraction was being fed commentary and auditor pages, not the P&L table. It now uses a statement-page scorer.
+- PAT was ambiguous on consolidated statements. It's now defined as the profit attributable to owners.
+- Management filings often say the profile "was provided in the intimation dated X". FINN now follows that reference to the earlier filing.
+- A failed judging call was cached permanently. Failures are no longer cached.
+- The judging prompt didn't know today's date, so it couldn't tell "missed" from "pending".
+- Results-meeting *notices* and AGM scrutinizer reports were ranked as results.

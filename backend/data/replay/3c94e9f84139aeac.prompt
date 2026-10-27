@@ -1,0 +1,17 @@
+[cheap]
+You are a precise financial analyst. Be terse.
+
+These are forward-looking statements by management of Persistent Systems Ltd from their Oct 2026 transcript.
+Extract concrete, checkable promises about revenue/growth, margins, profit, capex, debt, store/capacity additions, or other headline numbers. Skip vague optimism and anything said by analysts.
+Format: [{"metric": "...", "promise": "short paraphrase with the number", "horizon": "e.g. FY27 / next 2 quarters", "quote": "exact short quote"}]
+
+- In terms of financing, we intend replacing the Euro 1.4 billion 18-month bridge loan with longer tenure, capital and favorable terms. As a part of this long-term financing strategy, we will be raising USD 1.25 billion in terms of both debt and equity. Out of this, USD 450 million will be raised through equity, qualified institutional placement or equity-linked instruments like FCCB or combination of similar instruments.
+- As a part of this acquisition, I would like to highlight an important aspect around one-time expenses related to the transaction. Overall, we are expecting one-time expenses to the tune of approximately $50 million spread over three to four quarters. These expenses will weigh in on the reported EPS growth as you would have seen in our Q2 results reflecting an impact of around 3.1% on our reported PAT.
+- To summarize, all the processes related to the Nagarro acquisition are going on at the expected pace. We expect the deal closure by Q4-CY26 or Q1-CY27. We will keep you posted on the progress of this over time.
+- These expenses include transaction and advisory costs related to regulatory filing, financing charges, legal, communication and travel expenses. Over the next two quarters, we expect an incremental amount ranging between USD 25 to 30 million to be incurred towards the Nagarro transaction. For Q2 FY27, these expenses impacted the reported PAT margin as well as the reported EPS by around 3.1%.
+- And any year end margin target you would want to share? Sandeep Kalra: Yeah, so from our perspective we have said we want to be in the 16 to 17 % range, that is our aspiration. That will be our endeavour but we'll let the quarters pan by.
+- So, we are awaiting RBI approvals and FDI approvals in Austria and Spain. We expect in the next 4 to 6 weeks, max, let's say 8 weeks, that's our hope and expectation. Obviously, these approvals have to come when they come.
+- Once we close the deal, this is now since we have more than 90% of the shares, our intent is to do a merger squeeze out. And basically, if we do that, we will need about 5 to 6 months to optimistically bring the 2 companies together. Even before that, we can start working together, where we have signed a cooperation agreement, we can try and take their services into our customers and vice versa.
+- So please look at that just as you would look at it as investors at a portfolio of your own investments, not everything pans out every month at the same clip. Persistent Systems Limited Page 21 of 25 So, we are reasonably assured in our minds about what we are signed up for, our ability to optimize margins over a period of time and deliver to our aspirational goals of 16 to 17% margins and the growth that we aspire. Hopefully that answers.
+
+Return ONLY valid JSON, no prose, no code fences.

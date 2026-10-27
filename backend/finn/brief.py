@@ -67,6 +67,13 @@ def build_brief(hours=24, now=None):
     since = now - timedelta(hours=hours)
     care = set(s["categories"])
 
+    # Pre-computed enrichment headlines let a collapsed card lead with the "so what" instead of the raw filing line.
+    headlines = {}
+    for e in conn.execute("SELECT id, payload FROM enrichments"):
+        h = json.loads(e["payload"]).get("headline")
+        if h:
+            headlines[e["id"]] = h
+
     cards, routine = [], []
     for r in conn.execute("SELECT * FROM announcements WHERE symbol IN (%s)" % ",".join("?" * len(s["portfolio"])), s["portfolio"]):
         ts = parse_ts(r["ts"])
@@ -77,7 +84,7 @@ def build_brief(hours=24, now=None):
         alert = cat in care
         item = {"id": r["id"], "kind": "filing", "symbol": r["symbol"], "ts": ts.isoformat(), "category": cat,
                 "importance": imp + (10 if alert else 0), "alert": alert, "subject": r["subject"],
-                "text": clean_detail(r["detail"]), "url": r["attachment"]}
+                "text": headlines.get(r["id"]) or clean_detail(r["detail"]), "url": r["attachment"]}
         (routine if imp < ROUTINE_BELOW else cards).append(item)
 
     # Price/volume alerts: only sessions that fall inside the window.

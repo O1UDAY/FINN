@@ -1,0 +1,332 @@
+[cheap]
+You are a precise financial analyst. Be terse.
+
+From this quarterly results filing, extract CONSOLIDATED figures if present (else standalone) for the latest quarter, the previous quarter, and the same quarter last year. EBITDA = profit before tax + finance costs + depreciation - other income if not stated. PAT = profit attributable to owners of the company when shown, else net profit after tax. Quarter columns only, never six-month or full-year columns. Use the filing's unit.
+{"basis": "consolidated|standalone", "unit": "e.g. ₹ crore", "period": "e.g. Q2 FY27", "revenue": [cur, prev_q, year_ago], "ebitda": [..], "pbt": [..], "pat": [..], "one_liner": "what an investor should notice, max 18 words"}
+
+E> 
+LARSEN & TOUBRO LIMITED 
+Registered Office: L& T House, Ballard Estate, Mumbai 400 001 
+CJN: L99999MH1946PLC004768 
+STATEMENT DF UNAUDITED CONSOLIDATED FINANCIAL RESULTS FOR THE QUARTER AND SIX MONTHS ENDED SEPTEMBER 30, 2026 
+~ Crore 
+Quarter ended 
+Six months ended 
+Year ended 
+September 30, 
+June 30, 
+September 30, September 30, September 30, 
+March 31, 
+Particulars 
+2026 
+2026 
+2025 
+2026 
+2025 
+2026 
+[~eviewed] 
+[Reviewed] 
+[Re'liewed] 
+[Reviewed) 
+[Reviewed] 
+[Audited] 
+1 
+Income: 
+a) Revenue from operations 
+78749.94 
+67941.74 
+67983.53 
+146691.68 
+131662.45 
+285874.36 
+b) Other income (net) 
+2306.26 
+2376.73 
+1384.28 
+4682.99 
+2741.06 
+5760.68 
+Total Income 
+81056.20 
+70318.47 
+69367.81 
+151374.67 
+134403.51 
+291635.04 
+2 Expenses: 
+a) Manufacturing, construction and operating expenses: 
+i) Cost of raw materials and components consumed 
+11255.26 
+8170.14 
+7572.63 
+19425.40 
+14222.90 
+33031.76 
+ii) Construction materials consumed 
+17183.26 
+11729.13 
+16034.77 
+28912.39 
+29986.54 
+63388.65 
+iii) Purchase of stock-in-trade 
+360.41 
+426.69 
+302.08 
+787.10 
+514.44 
+1262.30 
+iv) Stores. spares and loose tools consumed 
+1550.23 
+1060.20 
+985.17 
+2610.43 
+1993.38 
+4171.98 
+v) Sub-contracting charges 
+12963.60 
+12128.44 
+11001.47 
+25092.04 
+22358.53 
+49446.73 
+vi) Changes in inventories of finished goods, stock-in-trade and work-in-progress 
+(82.44) 
+(1791.33) 
+(168.68) 
+(1873.77) 
+(661.98) 
+(1963.12) 
+vii) Other manufacturing, construction and operating expenses 
+9042.52 
+9975.26 
+7861.03 
+19017.78 
+15405.48 
+36502.91 
+b) Finance cost of financial services business and finance lease activity 
+1968.86 
+2032.66 
+1706.83 
+4001.52 
+3413.18 
+6995.34 
+c) Employee benefits expense 
+14245.58 
+14043.43 
+12985.98 
+28289.01 
+25624.42 
+52187.22 
+d) Sales, administration and other expenses 
+3418.01 
+4050.64 
+2895.84 
+7468.65 
+5681.49 
+11699.45 
+e) Finance costs 
+472.94 
+538.67 
+762.81 
+1011.61 
+1544.42 
+2848.82 
+f) 
+Depreciation. amortisation. impairment and obsolescence 
+1036.91 
+1032.28 
+1091.77 
+2069.19 
+2125.07 
+4364.75 
+Total Expenses 
+73415.14 
+63396.21 
+63031.70 
+136811.35 
+122207.87 
+263936.79 
+3 
+Profit before exceptional items and tax {1-2) 
+7641.06 
+6922.26 
+6336.11 
+14563,32 
+12195.64 
+27698.25 
+4 
+Exceptional items [loss] 
+(1722.44) 
+5 
+Profit before tax (3+4) 
+7641.06 
+6922.26 
+6336.11 
+14563.32 
+12195.64 
+25975.81 
+6 
+Tax expense: 
+a) Current tax 
+2062.97 
+1881.18 
+1576.97 
+3944.15 
+3095.47 
+6752.96 
+b) Deferred tax 
+(337.06) 
+58.23 
+72.05 
+(278.83) 
+87 51 
+63.45 
+Total tax expense 
+1725.91 
+1939.41 
+1649.02 
+3665.32 
+3182,98 
+6816.41 
+7 
+Net profit after tax (5-6) 
+5915.15 
+4982.85 
+4687.09 
+10898.00 
+9012.66 
+19159.40 
+8 
+Share in profiU(loss) after tax of joint ventures/associates (net} 
+34.00 
+5.18 
+(9.08) 
+39.18 
+(16.48) 
+(205.52) 
+9 
+Net profit after tax including share in profit/{loss) of joint ventures/associates (7+8) 
+5949.15 
+4988.03 
+4678.01 
+10937.18 
+8996.18 
+18953.88 
+Attributable to: Owners of the Company 
+5202.10 
+4122.85 
+3926.09 
+9324.95 
+7543.28 
+16083.99 
+Non-eontrolling interests 
+747,05 
+865.18 
+751.92 
+1612.23 
+1452.90 
+2869.89 
+10 Other comprehensive income {OCI) 
+a) i) Items that will not be reclassified to profit and loss 
+(172,63) 
+129.59 
+(31.60) 
+(43.04) 
+(122.28) 
+(115.88) 
+ii} Income tax relating to items that will nol be reclassified to profit and loss 
+44.60 
+(32.93) 
+7.45 
+11.67 
+34.40 
+30.54 
+b) i) Items lhal will be reclassified to profit and loss 
+(208.89) 
+976.13 
+(628.08) 
+767.24 
+717.49 
+(723.61 ) 
+ii) Income tax relating to items that will be reclassified to profit and loss 
+24.98 
+(234.98) 
+162.69 
+(210.00) 
+39.76 
+402.45 
+Other comprehensive income [net of tax] (a+b) 
+(311.94) 
+837.81 
+(489,54) 
+525,87 
+669.37 
+(406.50) 
+Allributable to: Owners of lhe Company 
+(323.93) 
+617.51 
+(268.08) 
+293.58 
+889.22 
+185.98 
+Non-controlling interests 
+11.99 
+220.30 
+(221.46) 
+232.29 
+(219.85) 
+(592.48) 
+11 Total comprehensive income (9+10) 
+5637.21 
+5825.84 
+4188.47 
+11463.05 
+9665.55 
+18547.38 
+Attributable to: Owners of the Company 
+4878.17 
+4740.36 
+3658.01 
+9618.53 
+8432.50 
+16269.97 
+Non-controlling Interests 
+759.04 
+1085.48 
+530.46 
+1844.52 
+1233.05 
+2277.41 
+12 Paid-up equity share capital (face value of share: t 2 each) 
+275.18 
+275.15 
+275.11 
+275.18 
+275.11 
+275.13 
+13 Other equity attributable to owners of the Company 
+109014.67 
+14 Earnings per equity share (EPS) (not annualised for the interim periods): 
+(a) Basic EPS (t) 
+37.81 
+29.97 
+28.54 
+67.78 
+54.85 
+116.93 
+(b) Diluted EPS (~) 
+37.80 
+29.96 
+28.53 
+67.76 
+54.82 
+116.88 
+Notes: 
+(i) During the quarter, the Company has allotted 1,65,811 equity shares of'" 2 each fully paid-up, on exercise of stock options by employees in accordance with the Company's stock option schemes. 
+(ii) The Company entered into a Share Purchase Agreement on April 29, 2026. with Hyderabad Metro Rail Limited. a Government of Telangana Enterprise for the divestment of its entire equity stake in its 
+subsidiary, L& T Metro Rail (Hyderabad} Limited rL TMRHL T The divestment process is underway and the estimated completion date for the transaction has been revised to December 31, 2026. Pursuant to 
+this. the Assets & the Liabilities of the L TMRHL continues to be classified as ·Held for Sale· as at September 30. 2026. 
+
+
+Return ONLY valid JSON, no prose, no code fences.

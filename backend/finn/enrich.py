@@ -13,10 +13,9 @@ import requests
 
 from . import llm
 from .db import connect
-from .pdftext import best_pages, pages
+from .pdftext import best_pages, pages, statement_pages
 from .screener import _row, company, quarter_compare
 
-RESULT_WORDS = ["revenue from operations", "profit before tax", "total income", "net profit", "quarter ended", "consolidated", "ebitda"]
 BOILER = re.compile(r"^.*?has (informed|submitted to) the Exchange,?\s*(about|regarding|that)?\s*", re.I)
 REGULATION = re.compile(r"^(disclosure|intimation)\b[^-–:]*?regulations?,?\s*\d{4}\s*(\([^)]*\))?\s*[-–:]\s*", re.I)
 
@@ -57,12 +56,14 @@ def _filing_text(ann, keywords, k=2, chars=9000):
 
 def _results(ann):
     if llm.available():
-        text = _filing_text(ann, RESULT_WORDS, k=2)
+        texts = pages(ann.get("attachment") or "")
+        text = "\n---\n".join(texts[i] for i in statement_pages(texts, k=1))[:12000]
         if text:
             got = llm.complete_json(
                 "From this quarterly results filing, extract CONSOLIDATED figures if present (else standalone) for the latest quarter, "
                 "the previous quarter, and the same quarter last year. EBITDA = profit before tax + finance costs + depreciation - other income "
-                "if not stated. Use the filing's unit.\n"
+                "if not stated. PAT = profit attributable to owners of the company when shown, else net profit after tax. "
+                "Quarter columns only, never six-month or full-year columns. Use the filing's unit.\n"
                 '{"basis": "consolidated|standalone", "unit": "e.g. ₹ crore", "period": "e.g. Q2 FY27", '
                 '"revenue": [cur, prev_q, year_ago], "ebitda": [..], "pbt": [..], "pat": [..], '
                 '"one_liner": "what an investor should notice, max 18 words"}\n\n' + text,
@@ -73,8 +74,14 @@ def _results(ann):
                     v = got.get(key) or []
                     if len(v) == 3 and all(isinstance(x, (int, float)) for x in v):
                         rows.append(_row(label, *v))  # growth computed here, not by the model
+                # Grounding check: reported figures must literally appear in the filing (EBITDA may be derived).
+                flat = re.sub(r"[,\s]", "", text)
+                missing = [r["metric"] for r in rows if r["metric"] != "EBITDA" and
+                           any(f"{x:.2f}".rstrip("0").rstrip(".") not in flat for x in (r["current"], r["prev_q"], r["year_ago"]))]
                 return {"type": "results", "period": got.get("period"), "unit": got.get("unit"), "basis": got.get("basis"),
-                        "rows": rows, "headline": got.get("one_liner"), "source": "results filing"}
+                        "rows": rows, "headline": got.get("one_liner"), "source": "results filing",
+                        "note": f"Could not find {', '.join(missing)} figures verbatim in the filing; verify before relying." if missing else
+                                "Every figure checked against the filing text.", "stale": bool(missing)}
     try:
         qc = quarter_compare(company(ann["symbol"]))
     except Exception:
@@ -91,7 +98,7 @@ def _results(ann):
     return {"type": "summary", "text": clean_detail(ann.get("detail"))}
 
 
-NAME = re.compile(r"\b(?:Mr|Ms|Mrs|Dr|Shri|Smt)\.?\s+([A-Z][a-zA-Z.]+(?:\s+[A-Z][a-zA-Z.]+){0,3})")
+NAME = re.compile(r"\b(?:Mr|Ms|Mrs|Dr|Shri|Smt)\.?\s+([A-Z][a-zA-Z.]+(?:[ ]+[A-Z][a-zA-Z.]+){0,3})")
 
 
 def _web_profile(name, company_name):
@@ -106,8 +113,34 @@ def _web_profile(name, company_name):
         return None
 
 
+PROFILE_WORDS = ["appoint", "resign", "profile", "experience", "cessation", "superannuat", "brief", "qualification"]
+EARLIER = re.compile(r"(?:intimation|letter|disclosure)s? dated ([A-Z][a-z]+ \d{1,2}, \d{4})")
+
+
+def _referenced_profiles(ann, text):
+    """Filings often say the profile was 'already provided in the intimation dated <date>'. Fetch that filing instead
+    of leaving the investor with a bare name - it is still primary data from the same exchange feed."""
+    from .brief import parse_ts
+    extra = []
+    for d in dict.fromkeys(EARLIER.findall(text)):
+        try:
+            day = datetime.strptime(d, "%B %d, %Y").date()
+        except ValueError:
+            continue
+        for r in connect().execute("SELECT * FROM announcements WHERE symbol=? AND id<>?", (ann["symbol"], ann["id"])):
+            ts = parse_ts(r["ts"])
+            if ts and ts.date() == day:
+                # Short filings: read them whole, since the profile usually sits on its own annexure page.
+                t = _filing_text(dict(r), None, k=5, chars=9000)
+                if "profile" in t.lower() or "experience" in t.lower():
+                    extra.append(f"[Earlier filing {d}]\n{t}")
+    return "\n---\n".join(extra)
+
+
 def _management(ann):
-    text = _filing_text(ann, ["appoint", "resign", "profile", "experience", "cessation", "superannuat", "brief"], k=3, chars=10000)
+    text = _filing_text(ann, PROFILE_WORDS, k=3, chars=10000)
+    if text:
+        text += "\n---\n" + _referenced_profiles(ann, text)
     people = []
     if llm.available() and text:
         got = llm.complete_json(
@@ -117,7 +150,8 @@ def _management(ann):
             tier="cheap", max_tokens=700)
         people = [p for p in (got or []) if isinstance(p, dict) and p.get("name")]
     if not people and text:
-        names = list(dict.fromkeys(NAME.findall(text)))[:2]
+        found = list(dict.fromkeys(NAME.findall(text)))
+        names = [n for n in found if not any(n != m and n in m for m in found)][:2]  # drop bare surnames
         people = [{"name": n, "role": None, "change": None, "background": None} for n in names]
 
     cname = ann["symbol"]
@@ -131,8 +165,15 @@ def _management(ann):
                     + json.dumps(web), tier="cheap", max_tokens=150)
     headline = None
     if people:
-        p = people[0]
-        headline = " · ".join(x for x in [p["name"], p.get("role"), p.get("change")] if x)
+        # Lead with the incoming person: that is who the investor needs to know about.
+        p = next((x for x in people if x.get("change") == "appointed"), people[0])
+        role, ch = p.get("role"), p.get("change")
+        if ch == "appointed" and role:
+            headline = f"New {role}: {p['name']}" + (f", replacing {p['replaces']}" if p.get("replaces") else "")
+        elif ch and role:
+            headline = f"{p['name']} {ch} as {role}"
+        else:
+            headline = p["name"]
     return {"type": "management", "people": people, "headline": headline, "text": clean_detail(ann.get("detail"))}
 
 

@@ -52,6 +52,23 @@ def pages(url: str) -> list[str]:
     return [re.sub(r"[ \t]+", " ", p.get_text()) for p in doc]
 
 
+STATEMENT_ITEMS = ["revenue from operations", "other income", "total income", "finance costs", "depreciation",
+                   "profit before", "tax expense", "total expenses", "net profit", "profit for the period"]
+
+
+def statement_pages(texts: list[str], k=1) -> list[int]:
+    """The financial-results table itself: many distinct P&L line items and dense numbers, never the auditor's report.
+    Keyword counts alone pick commentary pages, which repeat 'revenue' and 'quarter ended' in prose."""
+    def score(t):
+        low = t.lower()
+        if "did not review" in low or "we have reviewed" in low:
+            return 0
+        nums = len(re.findall(r"\d[\d,]*\.\d{2}\b", t))
+        return sum(w in low for w in STATEMENT_ITEMS) * 2 + min(nums, 200) / 40 + ("consolidated" in low)
+    ranked = sorted(range(len(texts)), key=lambda i: -score(texts[i]))
+    return sorted(i for i in ranked[:k] if score(texts[i]) > 4)
+
+
 def best_pages(texts: list[str], keywords: list[str], k=2) -> list[int]:
     """Indices of the k pages mentioning the most keywords, in document order."""
     scored = sorted(range(len(texts)), key=lambda i: -sum(texts[i].lower().count(w) for w in keywords))

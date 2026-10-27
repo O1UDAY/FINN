@@ -1,0 +1,8 @@
+```json
+{"basis": "consolidated", "unit": "₹ crore", "period": "Q2 FY27",
+ "revenue": [78749.94, 67941.74, 67983.53],
+ "ebitda": [6844.65, 6116.48, 6806.41],
+ "pbt": [7641.06, 6922.26, 6336.11],
+ "pat": [5202.10, 4122.85, 3926.09],
+ "one_liner": "Revenue +16% YoY but EBITDA flat; profit jump driven by lower finance cost and tax, not operations."}
+```

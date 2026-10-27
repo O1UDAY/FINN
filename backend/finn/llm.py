@@ -14,6 +14,7 @@ from datetime import datetime
 
 import requests
 
+from .config import DATA_DIR
 from .db import connect
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY") or os.getenv("FINN_ANTHROPIC_KEY")
@@ -22,6 +23,7 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 MODELS = {
     "anthropic": {"cheap": "claude-haiku-5-5", "strong": "claude-sonnet-5-5"},
     "gemini": {"cheap": "gemini-2.5-flash-lite", "strong": "gemini-2.5-flash"},
+    "replay": {"cheap": "replay-cheap", "strong": "replay-strong"},
 }
 # USD per 1M tokens (input, output), for the cost log only.
 PRICES = {
@@ -30,8 +32,13 @@ PRICES = {
 }
 
 
+REPLAY_DIR = DATA_DIR / "replay"
+
+
 def provider():
     pref = os.getenv("FINN_LLM_PROVIDER")
+    if pref == "replay":
+        return "replay"
     if pref == "gemini" and GEMINI_KEY:
         return "gemini"
     if ANTHROPIC_KEY:
@@ -85,6 +92,14 @@ def complete(prompt: str, tier="cheap", system="You are a precise financial anal
     hit = conn.execute("SELECT output FROM llm_cache WHERE key=?", (key,)).fetchone()
     if hit:
         return hit["output"]
+    if p == "replay":
+        # Test harness: prompts are written out, answers are written in by hand, nothing is cached.
+        REPLAY_DIR.mkdir(parents=True, exist_ok=True)
+        ans = REPLAY_DIR / f"{key[:16]}.answer"
+        if ans.exists():
+            return ans.read_text(encoding="utf-8")
+        (REPLAY_DIR / f"{key[:16]}.prompt").write_text(f"[{tier}]\n{system}\n\n{prompt}", encoding="utf-8")
+        return None
     text, tin, tout = (_anthropic if p == "anthropic" else _gemini)(model, system, prompt, max_tokens)
     pin, pout = PRICES.get(model, (0, 0))
     cost = (tin * pin + tout * pout) / 1e6
@@ -96,7 +111,11 @@ def complete(prompt: str, tier="cheap", system="You are a precise financial anal
 
 def complete_json(prompt: str, tier="cheap", **kw):
     """Ask for JSON and parse it leniently (models sometimes wrap it in prose or code fences)."""
-    out = complete(prompt + "\n\nReturn ONLY valid JSON, no prose, no code fences.", tier=tier, **kw)
+    try:
+        out = complete(prompt + "\n\nReturn ONLY valid JSON, no prose, no code fences.", tier=tier, **kw)
+    except requests.RequestException as e:  # rate limit / outage: callers fall back, nothing is cached
+        print(f"llm {tier} call failed: {e}")
+        return None
     if out is None:
         return None
     m = re.search(r"[\[{].*[\]}]", out, re.S)
