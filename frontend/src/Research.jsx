@@ -151,6 +151,8 @@ function Analysis({ a }) {
                 <span className={"verdict " + (x.agrees ? "v-delivered" : "v-missed")}>{x.agrees ? "Holds up" : "Doesn't add up"}</span>
                 <div className="what">{x.claim}</div>
                 <div className="ev">{x.reality}</div>
+                <Facts facts={x.facts} />
+                {x.said_in && <div className="meta"><span>Said {x.said_in}</span></div>}
               </li>
             ))}
           </ul>
@@ -168,12 +170,29 @@ function Analysis({ a }) {
         <section className="sec">
           <h2>The case for and against</h2>
           <div className="case">
-            <div><h3 className="up">For</h3><ul>{(a.bull || []).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
-            <div><h3 className="down">Against</h3><ul>{(a.bear || []).map((x, i) => <li key={i}>{x}</li>)}</ul></div>
+            <div><h3 className="up">For</h3><ul>{(a.bull || []).map((x, i) => <CasePoint key={i} x={x} />)}</ul></div>
+            <div><h3 className="down">Against</h3><ul>{(a.bear || []).map((x, i) => <CasePoint key={i} x={x} />)}</ul></div>
           </div>
         </section>
       )}
     </>
+  );
+}
+
+function Facts({ facts }) {
+  if (!facts?.length) return null;
+  return <div className="facts">{facts.map((f) => <span key={f.id}>{f.text}</span>)}</div>;
+}
+
+function CasePoint({ x }) {
+  if (typeof x === "string") return <li>{x}</li>;
+  return (
+    <li>
+      {x.point}
+      <Facts facts={x.facts} />
+      {x.promises?.length > 0 && <div className="facts"><span>Promises and delivery: {x.promises.join(", ")}</span></div>}
+      {x.uncited && <span className="sig-note">Opinion: no figure cited.</span>}
+    </li>
   );
 }
 
@@ -191,6 +210,7 @@ function Commitment({ p }) {
       {k && (
         <div className="kpi">
           <span className="kpi-src">Reported {k.quarter}{pageNo(k.page) ? `, p. ${pageNo(k.page)}` : ""}:</span> {k.reported_value}
+          {k.confirmed === false && <span className="sig-note">Found on one of two readings; check the page.</span>}
           {k.quote && <blockquote>{k.quote}</blockquote>}
           {k.source_doc && <a href={k.source_doc} target="_blank" rel="noreferrer">Open {k.quarter} document</a>}
         </div>
@@ -211,6 +231,16 @@ function Charts({ n }) {
     <>
       <section className="sec">
         <h2>Over the years</h2>
+        {n.trend?.length > 0 && (
+          <ul className="points">
+            {n.trend.map((x) => (
+              <li key={x.text}>
+                {x.kind === "good" ? <IconUp className="up" /> : x.kind === "bad" ? <IconDown className="down" /> : <IconDot className="faint" />}
+                <span>{x.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="chart-title">Revenue <span>₹ cr, by fiscal year</span></div>
         <Bars series={n.trajectory.sales} />
         <div className="chart-title">Profit after tax <span>₹ cr</span></div>
@@ -247,6 +277,13 @@ function Sources({ n, a }) {
         {ar && <div className="row"><span>{ar.period}</span><a href={ar.url} target="_blank" rel="noreferrer">Open PDF</a></div>}
         {docs.map((d) => <div className="row" key={d.url}><span>{d.kind === "transcript" ? "Earnings call" : "Investor presentation"}, {d.period}</span><a href={d.url} target="_blank" rel="noreferrer">Open PDF</a></div>)}
       </div>
+      {n.limits?.length > 0 && (
+        <div className="limits">
+          <h3>Limits and method</h3>
+          <ul>{n.limits.map((l) => <li key={l}>{l}</li>)}</ul>
+          {a?.kpi_passes && <p>KPI readings this run: {a.kpi_passes.both} found on both passes, {a.kpi_passes.first + a.kpi_passes.second - 2 * a.kpi_passes.both} on one, {a.kpi_passes.dropped_ungrounded} dropped because the quote wasn't in the document.</p>}
+        </div>
+      )}
       <p className="note">Figures from screener.in, compiled from exchange filings. {a?.llm ? "Commentary read from the company's own transcripts." : "No language model connected, so commitments are shown without verdicts."} No news or broker research is used.</p>
     </section>
   );

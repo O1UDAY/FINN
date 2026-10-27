@@ -173,6 +173,8 @@ def numbers(symbol: str) -> dict:
             sig("good" if qv[-1] > base else "bad", f"Latest-quarter margin {qv[-1]}% vs {base}% avg of prior 4 quarters")
     return {
         "symbol": c["symbol"], "name": c["name"], "lender": lender,
+        "trend": quarter_trend(qcols, _series(q, "Sales", "Revenue"), _series(q, "Net Profit"), None if lender else qopm),
+        "limits": limits(c, lease, lender),
         "snapshot": {k: c["ratios"].get(k) for k in ("Market Cap", "Current Price", "Stock P/E", "ROCE", "ROE", "Dividend Yield")},
         "ttm": {"sales": (_series(pl, "Sales", "Revenue") or [None])[-1], "pat": (_series(pl, "Net Profit") or [None])[-1]},
         "industry": c.get("industry", []),
@@ -191,6 +193,93 @@ def numbers(symbol: str) -> dict:
         "signals": signals,
         "documents": c["documents"][:24],
     }
+
+
+def _yoy(vals, i):
+    if i - 4 < 0 or vals[i] is None or not vals[i - 4]:
+        return None
+    return round((vals[i] / vals[i - 4] - 1) * 100, 1)
+
+
+def quarter_trend(cols, sales, pat, opm):
+    """Eight-quarter trajectory labelled in code: latest YoY growth against the average YoY of the prior quarters,
+    so a reader sees acceleration or slowdown without trusting the model's adjectives."""
+    out = []
+    for name, vals in (("Revenue", sales or []), ("Net profit", pat or [])):
+        yoys = [_yoy(vals, i) for i in range(len(vals))]
+        recent = [y for y in yoys[-4:] if y is not None]
+        if len(recent) < 2:
+            continue
+        last, prior = recent[-1], round(sum(recent[:-1]) / len(recent[:-1]), 1)
+        if any(abs(y) > 60 for y in recent[:-1]):  # a tiny year-ago quarter makes the average meaningless
+            out.append({"metric": name, "kind": "neutral",
+                        "text": f"{name} YoY {last:+.1f}% in {cols[-1]}; earlier quarters are off a low base, so no trend is called"})
+            continue
+        diff = last - prior
+        label = "accelerating" if diff >= 3 else "slowing" if diff <= -3 else "steady"
+        out.append({"metric": name, "kind": "good" if label == "accelerating" else "bad" if label == "slowing" else "neutral",
+                    "text": f"{name} YoY {label}: {last:+.1f}% in {cols[-1]} vs {prior:+.1f}% avg of prior {len(recent) - 1} quarters"})
+    m = [x for x in (opm or []) if x is not None]
+    if len(m) >= 5:
+        base = round(sum(m[-5:-1]) / 4, 1)
+        d = m[-1] - base
+        label = "up" if d >= 1 else "down" if d <= -1 else "flat"
+        out.append({"metric": "Margin", "kind": "good" if label == "up" else "bad" if label == "down" else "neutral",
+                    "text": f"Operating margin {label}: {m[-1]}% in {cols[-1]} vs {base}% avg of prior 4 quarters"})
+    return out
+
+
+def limits(c, lease, lender):
+    """What the reader should know about where the numbers come from and what FINN assumes."""
+    out = ["Financial tables: screener.in, compiled from the company's exchange filings. Check any number you act on "
+           "against the filing.",
+           "Transcripts and presentations: the company's own documents, linked on every promise with page numbers.",
+           "Margins are operating profit ÷ sales to one decimal. Growth, CAGR and ratios are computed in code, never by the model."]
+    if lease["flag"]:
+        out.append("Lease adjustment (Ind AS 116): lease liabilities come from the Borrowings schedule; lease payments are "
+                   "approximated by the 'Financial liabilities' line of financing cash flow, which can include other items. "
+                   "Treat ex-lease figures as indicative.")
+    if lender:
+        out.append("Lender: cash conversion and D/E are not meaningful here and are not scored.")
+    out.append("Verdicts and the written analysis come from a language model reading only these documents and numbers. "
+               "KPIs are read twice and kept only when the quote is found word for word in the document.")
+    return out
+
+
+def _facts(num):
+    """Numbered, code-computed facts the model must cite. Keeps the narrative and the case for and against honest."""
+    f = [x["text"] for x in num["signals"]] + [x["text"] for x in num.get("trend", [])]
+    t = num["trajectory"]
+    if t.get("sales_cagr_5y") is not None:
+        f.append(f"Revenue 5y CAGR {t['sales_cagr_5y']}%")
+    snap = num.get("snapshot") or {}
+    for k in ("ROCE", "ROE", "Stock P/E"):
+        if snap.get(k) not in (None, ""):
+            f.append(f"{k} {snap[k]}")
+    return {f"F{i}": x for i, x in enumerate(f, 1)}
+
+
+def attach_facts(judged, facts):
+    """Swap the fact ids the model cited for the fact text; points that cite nothing real are marked as opinion."""
+    def resolve(ids):
+        ids = ids if isinstance(ids, list) else [ids]
+        return [{"id": i, "text": facts[i]} for i in ids if isinstance(i, str) and i in facts]
+    for e in judged.get("narrative_vs_numbers") or []:
+        if isinstance(e, dict):
+            e["facts"] = resolve(e.get("fact_ids") or [])
+    for side in ("bull", "bear"):
+        kept = []
+        for x in judged.get(side) or []:
+            if isinstance(x, str):
+                x = {"point": x, "cites": []}
+            if not isinstance(x, dict) or not x.get("point"):
+                continue
+            cites = x.get("cites") or []
+            x["facts"] = resolve([c for c in cites if str(c).startswith("F")])
+            x["promises"] = [c for c in cites if str(c).startswith("P")]
+            x["uncited"] = not (x["facts"] or x["promises"])
+            kept.append(x)
+        judged[side] = kept
 
 
 def _sentences(text):
@@ -285,10 +374,12 @@ def analysis(symbol: str, refresh=False, progress=lambda step: None) -> dict:
             pg = pages(d["url"])
             if pg:
                 kpi_docs.append({"period": d["period"], "url": d["url"], "pages": pg, "kind": "presentation"})
-    reported = reported_kpis(num["name"], promises, kpi_docs, source_kind)
+    kpi_stats = {}
+    reported = reported_kpis(num["name"], promises, kpi_docs, source_kind, kpi_stats)
 
     # Step 3: one strong call does the judging.
     progress(STEPS[3])
+    facts = _facts(num)
     actuals = {"quarterly": num["quarters"], "annual": num["trajectory"], "balance": num["balance"], "cash": num["cash"]}
     judged = llm.complete_json(
         f"Company: {num['name']} ({symbol}). Use ONLY the material below - no outside knowledge.\n"
@@ -311,22 +402,28 @@ def analysis(symbol: str, refresh=False, progress=lambda step: None) -> dict:
         f"MANAGEMENT PROMISES (oldest calls are the most checkable):\n{json.dumps(promises, ensure_ascii=False)[:9000]}\n\n"
         f"REPORTED NUMBERS (₹ crore, % for margins):\n{json.dumps(actuals)[:7000]}\n\n"
         f"LATER-CALL KPIs (what management said it achieved, keyed by promise id):\n{json.dumps(reported, ensure_ascii=False)[:5000]}\n\n"
+        "COMPUTED FACTS (cite these by id; never state a number that is not here or in the reported numbers):\n"
+        + "\n".join(f"{k}: {v}" for k, v in facts.items()) + "\n\n"
         "Tasks:\n"
         "1. business: 2-sentence plain-English description and main segments/revenue drivers.\n"
         "2. promised_vs_delivered: for each checkable promise, apply the verdict rules. promise_ids lists the promise ids "
         "the entry covers (merged repeats). evidence cites the numbers or KPI values used.\n"
-        "3. narrative_vs_numbers: up to 3 places where management's story and the numbers agree or diverge.\n"
+        "3. narrative_vs_numbers: up to 3 specific management claims (their words, and which call) set against the "
+        "computed facts. fact_ids lists the facts used; agrees is false where the numbers contradict the claim.\n"
         "4. guidance: the current explicit guidance from the LATEST call only.\n"
-        "5. bull and bear: 3 tight points each, grounded in the material.\n"
+        "5. bull and bear: 3 tight points each. Every point cites at least one fact id (F..) or promise id (P..).\n"
         'JSON: {"business": {"summary": "", "segments": [""]}, "promised_vs_delivered": [{"promise_ids": ["P1"], "said_in": "", '
         '"metric": "", "promise": "", "quote": "", "outcome": "", "verdict": "", "evidence": ""}], "narrative_vs_numbers": '
-        '[{"claim": "", "reality": "", "agrees": true}], "guidance": [{"metric": "", "guidance": ""}], "bull": [""], "bear": [""]}',
+        '[{"claim": "", "said_in": "", "reality": "", "fact_ids": ["F1"], "agrees": true}], "guidance": [{"metric": "", '
+        '"guidance": ""}], "bull": [{"point": "", "cites": ["F1"]}], "bear": [{"point": "", "cites": ["P2"]}]}',
         tier="strong", max_tokens=3500,
         system="You are a sceptical buy-side analyst. You judge management by what they delivered, citing numbers. Be terse.")
     if judged:
         attach_evidence(judged.get("promised_vs_delivered", []), promises, reported)
+        attach_facts(judged, facts)
         out.update(judged)
         out["kpis_found"] = sum(len(v) for v in reported.values())
+        out["kpi_passes"] = kpi_stats
         _save(conn, symbol, out)
         return out
     # Judging failed (quota, outage, unparseable): show what we have, but don't cache it, so the next open retries.
@@ -394,10 +491,31 @@ def backward_statements(pg, keywords, limit_chars=3000):
     return sorted(keep)
 
 
-def reported_kpis(name, promises, per_doc, source_kind):
-    """One cheap call per LATER document, covering every promise made before it. Returns {promise_id: [kpi...]}."""
+def _norm(text):
+    return re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).strip()
+
+
+def _grounded(quote, pages_):
+    """A KPI quote must actually appear in the document (ignoring case, punctuation and spacing)."""
+    q = _norm(quote)
+    if len(q) < 8:
+        return False
+    hay = _norm(" ".join(pages_))
+    words = q.split()
+    # Allow the model to trim a word at either end; require the core run of words verbatim.
+    return q in hay or (len(words) > 4 and " ".join(words[1:-1]) in hay)
+
+
+def reported_kpis(name, promises, per_doc, source_kind, stats=None):
+    """Cheap calls per LATER document, covering every promise made before it. Returns {promise_id: [kpi...]}.
+
+    The cheap model misses lines between runs, so each document is read twice (lines in page order, then reversed)
+    and the results merged. A KPI is kept only if its quote is found verbatim in the document."""
     from .screener import _period_key
     out = {}
+    stats = stats if stats is not None else {}
+    for key in ("first", "second", "both", "dropped_ungrounded"):
+        stats.setdefault(key, 0)
     for d in per_doc:
         earlier = [p for p in promises if _period_key(p["said_in"]) < _period_key(d["period"])]
         if not earlier:
@@ -406,25 +524,35 @@ def reported_kpis(name, promises, per_doc, source_kind):
         lines = backward_statements(d["pages"], kws)
         if not lines:
             continue
-        got = llm.complete_json(
-            f"Earlier, management of {name} made these promises:\n"
-            + "\n".join(f"{p['id']}: {p.get('metric')}: {p['promise']} (said {p['said_in']})" for p in earlier)
-            + f"\n\nBelow are lines from their {d['period']} {d.get('kind', source_kind)}, each with its page. Report what management "
-            "says it actually achieved: one entry per matching line (quarterly and full-year figures both count), only "
-            "where a line states it. Do not infer, and omit promises with no matching line.\n"
-            '[{"id": "P1", "reported_value": "e.g. opened 52 stores in the quarter", "quote": "exact words, max 25", "page": 7}]\n\n'
-            + "\n".join(f"[p{pn}] {s}" for pn, s in lines),
-            tier="cheap", max_tokens=900)
-        for k in got or []:
-            val = str(k.get("reported_value") or "").strip().lower() if isinstance(k, dict) else ""
-            if is_placeholder(val):
-                continue  # the model is told to skip these; it doesn't always
-            if isinstance(k, dict) and k.get("id"):
-                out.setdefault(k["id"], []).append({"metric": next((p.get("metric") for p in promises if p["id"] == k["id"]), None),
-                                                    "reported_value": k["reported_value"], "quarter": d["period"],
-                                                    "quote": " ".join(str(k.get("quote", "")).split()[:25]),
-                                                    "page": _page_int(k.get("page")), "source_doc": d["url"],
-                                                    "doc_kind": d.get("kind", source_kind)})
+        head = (f"Earlier, management of {name} made these promises:\n"
+                + "\n".join(f"{p['id']}: {p.get('metric')}: {p['promise']} (said {p['said_in']})" for p in earlier)
+                + f"\n\nBelow are lines from their {d['period']} {d.get('kind', source_kind)}, each with its page. Report what management "
+                "says it actually achieved: one entry per matching line (quarterly and full-year figures both count), only "
+                "where a line states it. Do not infer, and omit promises with no matching line.\n"
+                '[{"id": "P1", "reported_value": "e.g. opened 52 stores in the quarter", "quote": "exact words, max 25", "page": 7}]\n\n')
+        found = {}
+        for pass_no, order in enumerate((lines, list(reversed(lines)))):
+            got = llm.complete_json(head + "\n".join(f"[p{pn}] {s}" for pn, s in order), tier="cheap", max_tokens=900)
+            for k in got or []:
+                if not isinstance(k, dict) or not k.get("id") or is_placeholder(k.get("reported_value")):
+                    continue  # the model is told to skip these; it doesn't always
+                quote = " ".join(str(k.get("quote", "")).split()[:25])
+                if not _grounded(quote, d["pages"]):
+                    stats["dropped_ungrounded"] += 1
+                    continue
+                sig = (k["id"], _norm(quote)[:60])
+                if sig in found:
+                    found[sig]["passes"].add(pass_no)
+                    continue
+                found[sig] = {"passes": {pass_no}, "kpi": {
+                    "metric": next((p.get("metric") for p in promises if p["id"] == k["id"]), None),
+                    "reported_value": k["reported_value"], "quarter": d["period"], "quote": quote,
+                    "page": _page_int(k.get("page")), "source_doc": d["url"], "doc_kind": d.get("kind", source_kind)}}
+        for (pid, _), v in found.items():
+            stats["first"] += 0 in v["passes"]
+            stats["second"] += 1 in v["passes"]
+            stats["both"] += len(v["passes"]) == 2
+            out.setdefault(pid, []).append({**v["kpi"], "confirmed": len(v["passes"]) == 2})
     return out
 
 
