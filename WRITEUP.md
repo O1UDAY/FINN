@@ -25,15 +25,23 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 | Cold research took ~60s on one request | Background job with step progress | TITAN (never seen before): job ran to completion, 7 commitments |
 | Nothing actually reached out | Optional Telegram alerts, de-duplicated, capped at 10 per refresh, deep link into the story | Format and de-duplication covered by tests; not sent for real (no bot token) |
 | Small tap targets; unvalidated holdings | 44px controls; Yahoo validation and immediate fetch; `.BO` fallback; zero-volume days excluded from the average | At 375px: **0 controls under 44×44**, no horizontal scroll. Fake 6.0× spike → correct 3.0× in the zero-volume test |
-| No tests | pytest suite | 24 tests pass |
+| Polycab's insolvency petitions were folded as "immaterial" | Red flags (insolvency/NCLT, fraud, regulator orders, auditor or KMP resignations, defaults, pledges) skip the size test | 6 Polycab filings now surface as "Red flag: insolvency petition"; 0 false matches across 193 filings. Month view 22 → 25 stories |
+| The cheap model's KPI reading varied run to run | Each document read twice, results merged; a KPI is kept only if its quote is found verbatim in the document; one-reading KPIs are labelled "check the page" | Jubilant KPIs 6 → 11 (the two readings found 6 and 7, agreeing on 2): one pass was missing about half. 0 ungrounded quotes. +≈$0.002 per company |
+| Bios were blank when the filing had no profile | Search the company's other recent filings (appointment intimations, board outcomes, postal-ballot notices) and cite the one used; otherwise say no profile exists | HDFC's new General Counsel: blank → "No profile in this or the company's other recent filings" (true for every HDFC filing held) |
+| Story-vs-numbers and the case for/against were uncited prose | Numbered, code-computed facts passed to the judge; every point must cite a fact or promise id, resolved in code; uncited points are labelled "Opinion"; quarterly trend labelled in code, with low-base quarters and lender margins excluded | Jubilant: bull/bear 0 of 6 cited → 5 of 6 cited; story claims 2 of 2 cite a fact. Trend: "Revenue YoY slowing: +13.7% vs +17.3% avg of prior 3 quarters" |
+| Readers couldn't see the method's limits | "Limits and method" box on every research page: data source, lease proxy, what code computes and what the model judges, this run's KPI agreement | Shown on all research pages |
+| A strong-model fallback was cached as the strong answer, so later runs never retried | Fallback answers cached under the cheap model's key | Found while re-running Jubilant |
+| No tests | pytest suite | 30 tests pass |
 
-**Cost.** Measured over the whole build: $0.0972 for 104 model calls (87 cheap at ~$0.00018, 17 strong at ~$0.0048), at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.007–0.012**; a cached one is free. A daily refresh (one batched classification call plus summaries for new stories) is about **$0.001–0.002**.
+**Cost.** Measured over the whole build: $0.106 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.
+
+**Caveat on the Jubilant output above.** The latest Jubilant analysis was judged by the cheap model: the strong model's free-tier daily quota ran out (HTTP 429) and FINN fell back as designed. Its one uncited point (free cash flow, not lease-adjusted) is labelled "Opinion" on the page. A strong-model re-run is needed once the quota resets. A daily refresh (one batched classification call plus summaries for new stories) is about **$0.001–0.002**.
 
 ## Deliberately left out
 - Intraday data. The brief asks for end of day, and intraday data would add cost without adding judgement.
 - Reading annual reports in full. They're linked; the effort went into transcripts and presentations, where guidance and KPIs live.
 - Web push and accounts. Telegram covers "reach out" without a login system.
-- Tavily-based executive bios. The code path exists but is untested; bios come from the filing's own profile annexure.
+- Tavily-based executive bios. The code path exists but is untested; bios come from exchange filings only (the filing, the one it references, then the company's other recent filings).
 - Extra visual themes. They're built, but hidden behind a flag; the product ships one considered look plus dark mode.
 
 ## Next
