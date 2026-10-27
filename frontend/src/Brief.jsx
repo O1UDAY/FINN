@@ -14,6 +14,8 @@ export default function Brief({ onAsk }) {
   const [err, setErr] = useState(null);
   const [done, setDone] = useState(() => new Set(local.get("done", [])));
   const [showRoutine, setShowRoutine] = useState(false);
+  // Telegram alerts link to /?story=<id>: open that story once the brief has loaded.
+  const [focusId] = useState(() => new URLSearchParams(window.location.search).get("story"));
 
   useEffect(() => {
     setData(null); setErr(null); local.set("hours", hours);
@@ -29,7 +31,11 @@ export default function Brief({ onAsk }) {
 
   return (
     <>
-      <Masthead>{new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</Masthead>
+      <Masthead>
+        {data?.data?.mode === "snapshot"
+          ? <span className="snap">Data as of {new Date(data.data.as_of).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} (snapshot)</span>
+          : new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}
+      </Masthead>
 
       <h1 className="page-title">The Brief</h1>
       <p className="standfirst">
@@ -46,7 +52,7 @@ export default function Brief({ onAsk }) {
       {!data && !err && <div className="loading">Collecting filings</div>}
 
       <ul className="story-list">
-        {open.map((c, i) => <Card key={c.id} item={c} lead={i === 0} onDone={clear} onAsk={onAsk} />)}
+        {open.map((c, i) => <Card key={c.id} item={c} lead={i === 0} focus={c.id === focusId} onDone={clear} onAsk={onAsk} />)}
       </ul>
 
       {data && total > 0 && open.length === 0 && (

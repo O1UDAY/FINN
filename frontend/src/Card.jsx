@@ -1,15 +1,21 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { ago, cat, Delta, fmt, IconCheck, Spark } from "./ui";
 
 /** One story in the Brief. Tap to read it; swipe right, or press Done, to file it away. */
-export default function Card({ item, lead, onDone, onAsk }) {
+export default function Card({ item, lead, focus, onDone, onAsk }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [err, setErr] = useState(null);
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const drag = useRef(null);
+  const el = useRef(null);
+  useEffect(() => {
+    if (!focus) return;
+    if (!open) toggle();
+    el.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focus]);
 
   async function toggle() {
     setOpen((o) => !o);
@@ -38,7 +44,7 @@ export default function Card({ item, lead, onDone, onAsk }) {
 
   const hed = detail?.headline || item.text || item.subject;
   return (
-    <li className="swipe">
+    <li className="swipe" ref={el}>
       <div className="under" aria-hidden><IconCheck /> Done</div>
       <article
         className={"story" + (lead ? " lead" : "") + (dragging ? " dragging" : "")}

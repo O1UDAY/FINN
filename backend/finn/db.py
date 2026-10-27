@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS pages (symbol TEXT PRIMARY KEY, html TEXT, fetched TE
 CREATE TABLE IF NOT EXISTS enrichments (id TEXT PRIMARY KEY, payload TEXT, created TEXT);
 CREATE TABLE IF NOT EXISTS research (symbol TEXT PRIMARY KEY, payload TEXT, created TEXT);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS notified_alerts (id TEXT PRIMARY KEY, kind TEXT, sent_at TEXT, channel TEXT);
 CREATE TABLE IF NOT EXISTS llm_cache (
     key TEXT PRIMARY KEY, model TEXT, output TEXT, cost_usd REAL, created TEXT
 );
@@ -45,3 +47,13 @@ def connect() -> sqlite3.Connection:
         except sqlite3.OperationalError:
             pass  # already applied
     return conn
+
+
+def set_meta(conn, key, value):
+    conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (key, str(value)))
+    conn.commit()
+
+
+def get_meta(conn, key, default=None):
+    r = conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    return r["value"] if r else default

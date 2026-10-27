@@ -4,6 +4,7 @@ Works for any NSE symbol screener covers. Pages are cached for 12h in SQLite.
 """
 import json
 import re
+import time
 from datetime import datetime, timedelta
 
 import requests
@@ -23,6 +24,28 @@ def _num(s: str):
         return None
 
 
+class SourceBusy(RuntimeError):
+    """screener.in is rate-limiting us. Distinct from 'company not found' so the user is told to retry, not that the
+    ticker doesn't exist."""
+
+
+def is_rate_limited(r) -> bool:
+    return r.status_code in (429, 403) or (r.status_code >= 500) or "too many requests" in r.text[:2000].lower()
+
+
+def _get_polite(url, attempts=3):
+    for i in range(attempts):
+        try:
+            r = requests.get(url, headers=UA, timeout=20)
+        except requests.RequestException:
+            r = None
+        if r is not None and not is_rate_limited(r):
+            return r
+        if i < attempts - 1:
+            time.sleep(3 * 2 ** i)  # 3s, 6s
+    raise SourceBusy("Data source busy, try again in a minute.")
+
+
 def _html(symbol: str) -> str:
     conn = connect()
     row = conn.execute("SELECT html, fetched FROM pages WHERE symbol=?", (symbol,)).fetchone()
@@ -30,12 +53,14 @@ def _html(symbol: str) -> str:
         return row["html"]
     html = None
     for suffix in ("consolidated/", ""):
-        r = requests.get(f"https://www.screener.in/company/{symbol}/{suffix}", headers=UA, timeout=20)
+        r = _get_polite(f"https://www.screener.in/company/{symbol}/{suffix}")
         # A standalone-only company's consolidated page exists but has empty tables; prefer one with quarters.
         if r.ok and "data-date-key" in r.text:
             html = r.text
             break
     if html is None:
+        if row:  # stale beats nothing when the source is having a bad minute
+            return row["html"]
         raise LookupError(f"{symbol} not found on screener.in")
     conn.execute("INSERT OR REPLACE INTO pages VALUES (?,?,?)", (symbol, html, datetime.now().isoformat()))
     conn.commit()

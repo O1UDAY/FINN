@@ -19,7 +19,18 @@ export default function Research({ symbol, setSymbol }) {
     setQ(symbol); setNum(null); setAna(null); setErr(null);
     local.set("recent", [symbol, ...recent.filter((s) => s !== symbol)].slice(0, 6));
     api.numbers(symbol).then(setNum).catch((e) => setErr(e.message));
-    api.analysis(symbol).then(setAna).catch((e) => setAna({ error: e.message }));
+    // Analysis runs as a server job: poll it and show which step it's on.
+    let stop = false;
+    api.startResearch(symbol).then(async (job) => {
+      while (!stop && job.status === "running") {
+        setAna({ running: true, step: job.step, steps: job.steps });
+        await new Promise((r) => setTimeout(r, 2000));
+        job = await api.job(job.job_id);
+      }
+      if (stop) return;
+      setAna(job.status === "done" ? job.result : { error: job.error });
+    }).catch((e) => !stop && setAna({ error: e.message }));
+    return () => { stop = true; };
   }, [symbol]);
 
   const go = (s) => { const v = (s || q).trim().toUpperCase(); if (v) setSymbol(v); };
@@ -88,11 +99,16 @@ function Header({ n }) {
 }
 
 function Analysis({ a }) {
-  if (!a) {
+  if (!a || a.running) {
+    const steps = a?.steps || ["Fetching documents", "Extracting guidance", "Checking delivery", "Writing analysis"];
+    const at = Math.max(0, steps.indexOf(a?.step));
     return (
       <section className="sec">
         <h2>Promises and delivery</h2>
-        <div className="loading">Reading the last four earnings calls. This takes a minute the first time.</div>
+        <ol className="steps" aria-live="polite">
+          {steps.map((s, i) => <li key={s} className={i < at ? "done" : i === at ? "now" : ""}>{s}</li>)}
+        </ol>
+        <div className="loading">The first read of a company takes about a minute. After that it's instant.</div>
       </section>
     );
   }
@@ -161,6 +177,8 @@ function Analysis({ a }) {
   );
 }
 
+const pageNo = (v) => (String(v ?? "").match(/\d+/) || [""])[0];
+
 function Commitment({ p }) {
   const [quote, setQuote] = useState(!p.promise);
   const v = p.verdict && p.verdict !== "unverified" ? p.verdict : null;
@@ -172,14 +190,14 @@ function Commitment({ p }) {
       {(p.evidence || p.outcome) && <div className="ev">{p.evidence || p.outcome}</div>}
       {k && (
         <div className="kpi">
-          <span className="kpi-src">Reported {k.quarter}{k.page ? `, p. ${k.page}` : ""}:</span> {k.reported_value}
+          <span className="kpi-src">Reported {k.quarter}{pageNo(k.page) ? `, p. ${pageNo(k.page)}` : ""}:</span> {k.reported_value}
           {k.quote && <blockquote>{k.quote}</blockquote>}
           {k.source_doc && <a href={k.source_doc} target="_blank" rel="noreferrer">Open {k.quarter} document</a>}
         </div>
       )}
       {p.quote && quote && <blockquote>{p.quote}</blockquote>}
       <div className="meta">
-        <span>Said {p.said_in}{p.page ? `, p. ${p.page}` : ""}{p.metric ? ` · ${p.metric}` : ""}</span>
+        <span>Said {p.said_in}{pageNo(p.page) ? `, p. ${pageNo(p.page)}` : ""}{p.metric ? ` · ${p.metric}` : ""}</span>
         {p.quote && p.promise && <button onClick={() => setQuote((x) => !x)}>{quote ? "Hide quote" : "Their words"}</button>}
         {p.url && <a href={p.url} target="_blank" rel="noreferrer">Source</a>}
       </div>
