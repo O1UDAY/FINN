@@ -133,6 +133,10 @@ function People({ d }) {
           <div><span className="nm">{p.name}</span>{p.change && <span className={"tag " + (p.change === "appointed" ? "up" : "faint")}>{p.change}</span>}</div>
           {p.role && <div className="role">{p.role}{p.effective ? `, from ${p.effective}` : ""}</div>}
           {p.background && <p>{p.background}</p>}
+          {p.background_source && (
+            <p className="note">From {p.background_source.subject}{p.background_source.date ? `, ${p.background_source.date}` : ""}. <a href={p.background_source.url} target="_blank" rel="noreferrer">Open filing</a></p>
+          )}
+          {!p.background && p.background_note && <p className="note">{p.background_note}</p>}
           {p.web?.slice(0, 2).map((w) => <a key={w.url} className="note" style={{ display: "block" }} href={w.url} target="_blank" rel="noreferrer">{w.title}</a>)}
         </div>
       ))}

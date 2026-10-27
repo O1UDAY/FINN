@@ -171,6 +171,33 @@ def _referenced_profiles(ann, text):
     return "\n---\n".join(extra)
 
 
+def _profile_elsewhere(ann, name, days=120, max_docs=6):
+    """No profile in this filing or the one it references: look through the company's other filings from the last
+    few months (appointment intimations, board outcomes, press releases) for one that names the person and describes
+    them. Still primary data from the exchange feed. Returns (text around the name, filing) or (None, None)."""
+    from .brief import parse_ts
+    here = parse_ts(ann.get("ts")) or datetime.now()
+    surname = name.split()[-1].lower()
+    rows = []
+    for r in connect().execute("SELECT * FROM announcements WHERE symbol=? AND id<>?", (ann["symbol"], ann["id"])):
+        ts = parse_ts(r["ts"])
+        if not ts or abs((here - ts).days) > days or not r["attachment"]:
+            continue
+        blob = f"{r['subject']} {r['detail']}".lower()
+        # Cheapest first: filings whose summary already names the person, then other management or board filings.
+        rank = 0 if surname in blob else 1 if (r["category"] in ("management_change", "board_outcome", "postal_ballot", "agm") or "appoint" in blob) else 9
+        if rank < 9:
+            rows.append((rank, abs((here - ts).days), dict(r)))
+    for _, _, r in sorted(rows, key=lambda x: x[:2])[:max_docs]:
+        t = _filing_text(r, None, k=5, chars=12000)
+        low = t.lower()
+        i = low.find(surname)
+        if i < 0 or not any(w in low for w in ("experience", "profile", "career", "joined", "graduate", "qualification")):
+            continue
+        return t[max(0, i - 300): i + 2500], r
+    return None, None
+
+
 TITLES = [(r"managing director (and|&) chief executive officer", "MD & CEO"), (r"chief executive officer", "CEO"),
           (r"chief financial officer", "CFO"), (r"chief operating officer", "COO"), (r"\bmanaging director\b", "MD"),
           (r"whole[- ]time director", "Whole-time Director")]
@@ -203,6 +230,21 @@ def _management(ann):
 
     cname = ann["symbol"]
     for p in people[:2]:
+        if not p.get("background") and p.get("change") in ("appointed", "redesignated", None):
+            snippet, src = _profile_elsewhere(ann, p["name"])
+            if snippet and llm.available():
+                bio = llm.complete(
+                    f"Summarise who {p['name']} is in at most 35 words, in your own words: previous roles and education, "
+                    "only from this filing text. If it does not describe them, answer NONE.\n\n" + snippet,
+                    tier="cheap", max_tokens=120)
+                if bio and "NONE" not in bio.upper()[:10]:
+                    from .brief import parse_ts
+                    ts = parse_ts(src["ts"])
+                    p["background"] = bio.strip()
+                    p["background_source"] = {"url": src["attachment"], "subject": src["subject"],
+                                              "date": ts.strftime("%d %b %Y") if ts else None}
+            if not p.get("background"):
+                p["background_note"] = "No profile in this or the company's other recent filings."
         web = _web_profile(p["name"], cname)
         if web:
             p["web"] = web
