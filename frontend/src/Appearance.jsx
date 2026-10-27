@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAppearance } from "./theme";
+import { DARK_ONLY, useAppearance } from "./theme";
 
 const MODES = [["system", "Match phone"], ["light", "Light"], ["dark", "Dark"]];
 // Swatch colours are literal so each option previews itself regardless of the current theme.
@@ -7,32 +7,36 @@ const PAPERS = [
   ["salmon", "Salmon", { light: ["#fff1e5", "#33302e"], dark: ["#1d1a18", "#f2e9e1"] }],
   ["ivory", "Ivory", { light: ["#f8f4ec", "#2b2925"], dark: ["#1c1c1a", "#ecebe6"] }],
   ["white", "White", { light: ["#ffffff", "#1a1a1a"], dark: ["#121519", "#eef1f4"] }],
+  ["stocks", "Stocks", { light: ["#000000", "#ffffff"], dark: ["#000000", "#ffffff"] }],
 ];
 const ACCENTS = [["claret", "Claret", "#990f3d"], ["oxford", "Oxford blue", "#0f5499"], ["teal", "Teal", "#0d7680"]];
 const SIZES = [["s", "Small"], ["m", "Default"], ["l", "Large"]];
 
 export default function Appearance() {
-  const { prefs, mode, save } = useAppearance(useState, useEffect);
+  const { prefs, save } = useAppearance(useState, useEffect);
+  // Previews show what each paper will look like when picked, i.e. in the saved theme, not the forced one.
+  const previewMode = prefs.mode === "dark" || (prefs.mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
   return (
     <section className="sec">
       <h2>Appearance</h2>
 
       <fieldset className="field">
         <legend>Theme</legend>
-        <div className="segmented">
+        <div className="segmented" aria-disabled={DARK_ONLY.has(prefs.paper)}>
           {MODES.map(([v, label]) => (
             <label key={v} className={prefs.mode === v ? "on" : ""}>
               <input type="radio" name="mode" value={v} checked={prefs.mode === v} onChange={() => save({ mode: v })} />{label}
             </label>
           ))}
         </div>
+        {DARK_ONLY.has(prefs.paper) && <p className="forced-note">Stocks is always dark, like the app it's modelled on. Pick another paper to use light mode.</p>}
       </fieldset>
 
       <fieldset className="field">
         <legend>Paper</legend>
         <div className="swatches">
           {PAPERS.map(([v, label, c]) => {
-            const [bg, ink] = c[mode] || c.light;
+            const [bg, ink] = c[previewMode] || c.light;
             return (
               <label key={v} className={"paper-opt" + (prefs.paper === v ? " on" : "")}>
                 <input type="radio" name="paper" value={v} checked={prefs.paper === v} onChange={() => save({ paper: v })} />

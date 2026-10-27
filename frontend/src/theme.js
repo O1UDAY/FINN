@@ -4,13 +4,15 @@ import { local } from "./api";
 
 export const DEFAULTS = { mode: "system", paper: "salmon", accent: "claret", size: "m" };
 export const ZOOM = { s: 0.92, m: 1, l: 1.12 };
+// Papers that only exist in one mode (Stocks follows Apple's app, which is dark only).
+export const DARK_ONLY = new Set(["stocks"]);
 const media = window.matchMedia("(prefers-color-scheme: dark)");
 
 export const getPrefs = () => ({ ...DEFAULTS, ...local.get("appearance", {}) });
 
 export function applyPrefs(p = getPrefs()) {
   const root = document.documentElement;
-  const mode = p.mode === "system" ? (media.matches ? "dark" : "light") : p.mode;
+  const mode = DARK_ONLY.has(p.paper) ? "dark" : p.mode === "system" ? (media.matches ? "dark" : "light") : p.mode;
   root.dataset.mode = mode;
   root.dataset.paper = p.paper;
   root.dataset.accent = p.accent;

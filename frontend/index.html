@@ -9,13 +9,13 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Source+Sans+3:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
     <title>FINN</title>
     <script>
       // Apply saved appearance before first paint so the page never flashes the wrong theme.
       try {
         var p = JSON.parse(localStorage.getItem("finn:appearance") || "{}"), r = document.documentElement;
-        var m = p.mode && p.mode !== "system" ? p.mode : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        var m = p.paper === "stocks" ? "dark" : p.mode && p.mode !== "system" ? p.mode : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
         r.dataset.mode = m; r.dataset.paper = p.paper || "salmon"; r.dataset.accent = p.accent || "claret";
         r.style.setProperty("--zoom", { s: 0.92, m: 1, l: 1.12 }[p.size] || 1);
       } catch (e) {}
