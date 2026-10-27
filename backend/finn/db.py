@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS documents (
     symbol TEXT, kind TEXT, period TEXT, url TEXT,
     PRIMARY KEY (symbol, kind, url)
 );
+CREATE TABLE IF NOT EXISTS pages (symbol TEXT PRIMARY KEY, html TEXT, fetched TEXT);
+CREATE TABLE IF NOT EXISTS enrichments (id TEXT PRIMARY KEY, payload TEXT, created TEXT);
+CREATE TABLE IF NOT EXISTS research (symbol TEXT PRIMARY KEY, payload TEXT, created TEXT);
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS llm_cache (
     key TEXT PRIMARY KEY, model TEXT, output TEXT, cost_usd REAL, created TEXT
 );

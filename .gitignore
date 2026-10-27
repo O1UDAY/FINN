@@ -4,3 +4,5 @@ __pycache__/
 backend/data/*.db
 node_modules/
 .next/
+frontend/dist/
+backend/data/pdf/

@@ -1,0 +1,58 @@
+"""Download-once PDF cache and text extraction."""
+import hashlib
+import re
+
+import pymupdf
+import requests
+
+from .config import DATA_DIR
+
+PDF_DIR = DATA_DIR / "pdf"
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+      "Accept": "application/pdf,*/*"}
+_nse = None
+
+
+def _get(url):
+    global _nse
+    if "nseindia.com" in url:
+        if _nse is None:
+            from .ingest.announcements import nse_session
+            _nse = nse_session()
+        return _nse.get(url, timeout=60)
+    headers = dict(UA)
+    if "bseindia.com" in url:
+        headers["Referer"] = "https://www.bseindia.com/"
+    return requests.get(url, headers=headers, timeout=60)
+
+
+def fetch_pdf(url: str) -> bytes | None:
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    path = PDF_DIR / (hashlib.sha1(url.encode()).hexdigest() + ".pdf")
+    if path.exists():
+        return path.read_bytes()
+    try:
+        r = _get(url)
+    except requests.RequestException:
+        return None
+    if not r.ok or not r.content.startswith(b"%PDF"):
+        return None
+    path.write_bytes(r.content)
+    return r.content
+
+
+def pages(url: str) -> list[str]:
+    data = fetch_pdf(url)
+    if not data:
+        return []
+    try:
+        doc = pymupdf.open(stream=data, filetype="pdf")
+    except Exception:
+        return []
+    return [re.sub(r"[ \t]+", " ", p.get_text()) for p in doc]
+
+
+def best_pages(texts: list[str], keywords: list[str], k=2) -> list[int]:
+    """Indices of the k pages mentioning the most keywords, in document order."""
+    scored = sorted(range(len(texts)), key=lambda i: -sum(texts[i].lower().count(w) for w in keywords))
+    return sorted(scored[:k])
