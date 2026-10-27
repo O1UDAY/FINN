@@ -2,67 +2,98 @@
 
 A mobile-first investor agent built for the ENAM Holdings AI Engineer Build Challenge.
 
-**Point of view:** an investor doesn't need another dashboard or another chatbot. They need a **queue they can clear** and a **research view that holds management to their word**.
+**Point of view:** an investor doesn't need another dashboard or another chatbot. They need a morning paper for their own portfolio, one they can finish, and a research desk that holds management to its word.
 
 | Tab | What it does |
 |---|---|
-| **Brief** (push) | Every filing and unusual move across the portfolio for a window you pick (24h / 3d / week / month), ranked by importance. Material items become cards; routine paperwork is folded into one line. Swipe right to clear a card. A progress bar shows how close you are to "All clear". |
-| **Interrogate** (pull) | Type any NSE ticker. You get a snapshot, computed red/green signals, **Promised vs. Delivered** across the last four concalls, narrative vs. numbers, current guidance, bull/bear, trajectory, cash quality and balance sheet. Every claim links to its primary source. |
-| **Watch** | You set what "unusual" means: volume ×, price ±%, which filing types alert you, and the portfolio. It also shows live LLM spend. |
+| **Brief** (push) | Filings and unusual moves for a window you pick (since yesterday / 3 days / week / month), ranked, each with a "why it's here" line. Routine paperwork and size-immaterial legal items are folded into "Also filed" with counts per category. Swipe a story right to clear it. |
+| **Research** (pull) | Any NSE ticker. Key figures, computed signals (lease-adjusted where needed), **promises and delivery** (guidance from the last four calls checked against reported numbers and later-call KPIs, with page citations), story vs numbers, guidance, the case for and against, trajectory, cash and debt. |
+| **Settings** | Price/volume thresholds, alert categories, validated holdings, light/dark, data status, model spend, Telegram test alert. |
 
-## How the push cards are enriched
-- **Results:** the cheap model reads the results filing and returns Revenue / EBITDA / PBT / PAT for this quarter, last quarter and the same quarter last year. **Growth is computed in code, not by the model.** If no LLM is set, it falls back to screener's quarterly table and warns when that table is older than the filing. For lenders, EBITDA is replaced by NPA.
-- **Management change:** who the person is, their role, whether they're joining or leaving, and their background. The background comes from the profile annexure that SEBI requires in the filing, plus an optional web lookup (Tavily) for LinkedIn and other public profiles.
-- **Unusual move:** a sparkline and volume bars, ranked by how far the move went past *your* threshold.
-- **Everything else:** a one-line "so what" for mid-importance filings; routine filings go to the fold.
+## Architecture
 
-## Cost funnel (the efficiency story)
-1. **Rules first.** ~85% of filings are classified by regex (`classify.py`) for free. Only the leftovers go to the cheap model, in **one batched call**.
-2. **Numbers are deterministic.** CAGR, D/E, CFO/PAT, cash conversion cycle and the signals are computed from screener's tables. No LLM, so the numbers can't be hallucinated.
-3. **Pre-filter before reading.** A regex keeps only forward-looking sentences with numbers, cutting a 60k-character transcript to about 3k.
-4. **Cheap model extracts, strong model judges.** One cheap call per transcript structures the promises. **One** strong call (Sonnet / Gemini Flash) compares them with the reported numbers.
-5. **Everything is cached.** LLM outputs are cached by `sha256(model+prompt)`, along with PDFs, card enrichments and research. Opening a card twice costs nothing.
-6. **Runs with no key at all.** Rules-only mode still gives the brief, alerts, results tables, every number and the raw forward-looking quotes.
+```
+                 ┌──────────── ingest.py (thread every 6h · CLI · POST /api/admin/refresh) ─────────────┐
+yfinance .NS/.BO ┤ prices                                                                                │
+NSE API ─retry──►├ announcements ──(NSE gave nothing?)──► BSE API ──(both empty?)──► seed snapshot       │
+screener.in ─────┤ tables, documents, line-item schedules (429/403 → "source busy", never "not found")   │
+                 └───────────────────────────────────────┬────────────────────────────────────────────────┘
+                                                         ▼
+                                     SQLite finn.db (filings, prices, pages, enrichments, research,
+                                      llm_cache, notified_alerts, meta)
+        ┌────────────────────────────┬──────────────────┴───────────┬─────────────────────────────┐
+  classify.py                   materiality.py                 enrich.py                    research.py
+  rules → 1 batched cheap call  claimed ₹ vs market cap        results (EBITDA in code),    numbers in code (margins to 1 dp,
+  + within-category rescoring   (<0.01% → folded)              management (+ referenced     lease-adjusted CFO and D/E, sanity
+                                                               profiles), one-liners        bounds) → regex → cheap extraction →
+                                                                                            later-call KPIs → 1 strong judge
+        └──────────── brief.py (window rules, grouping, why-it's-here) ──── notify.py (Telegram, de-duplicated)
+                                                         ▼
+                        app.py (FastAPI: /api/*, research jobs, /api/health) + React PWA (frontend/dist)
+```
 
-## Data sources
-- End-of-day price and volume: Yahoo Finance (`yfinance`, `.NS`)
-- Announcements: the NSE corporate-announcements API (filing PDFs from `nsearchives`)
-- Fundamentals: screener.in tables (compiled from exchange filings), plus annual reports, concall transcripts and investor presentations (BSE / company IR). Companies that don't hold concalls (e.g. Trent) fall back to investor presentations.
+**Models.** Rules first, then `gemini-3.5-flash-lite` for bulk work (classification, results and management extraction, one-liners, promise and KPI extraction), and `gemini-3.5-flash` for one judging call per company. Anthropic (Haiku/Sonnet) is supported too. Every call is cached by `sha256(model + prompt)`; arithmetic (EBITDA, growth, margins, ratios) is always done in code.
 
-The pull side uses primary sources only: no news, no broker notes, and the prompt forbids outside knowledge.
+**Measured cost** (Gemini list prices; the free tier makes it $0): ~$0.00018 per cheap call, ~$0.0048 per strong call. About **$0.007–0.012 for a new company's first research run**, $0 when cached; **~$0.001–0.002 for a daily refresh**.
 
 ## Run locally
+
+Requires **Python 3.10+** and Node 18+.
+
 ```bash
-cd backend && pip install -r requirements.txt
-cp ../.env.example ../.env      # optional: add ANTHROPIC_API_KEY or GEMINI_API_KEY (free tier)
-python ingest.py --days 30 --docs
+cd backend
+pip install -r requirements.txt
+cp ../.env.example ../.env          # add GEMINI_API_KEY (free at aistudio.google.com); everything else optional
+python ingest.py --days 30 --docs   # first run takes several minutes (--docs fetches every company's document list)
 cd ../frontend && npm install && npm run build
 cd .. && python -m uvicorn app:app --app-dir backend --port 8000
 ```
-Open http://localhost:8000 on your phone (same Wi-Fi: `--host 0.0.0.0`). For frontend development, run `npm run dev` in `frontend/`; it proxies `/api` to :8000.
 
-## Deploy
-One Docker container (`Dockerfile`) serves both the API and the PWA. `render.yaml` deploys it to Render's free tier: connect the repo, then add a key in the dashboard. Data refreshes on boot and every 6h.
+Open http://localhost:8000. To try it on a phone on the same Wi-Fi, add `--host 0.0.0.0` and open `http://<laptop-ip>:8000`. For frontend development, `npm run dev` in `frontend/` proxies `/api` to :8000.
+
+Tests: `cd backend && python -m pytest -q`.
+
+## Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Language model (or `ANTHROPIC_API_KEY`). Without a key FINN runs rules-only. |
+| `FINN_GEMINI_CHEAP`, `FINN_GEMINI_STRONG` | Override model names when Google retires them. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Optional push alerts after each refresh. Unset = silently off. |
+| `FINN_PUBLIC_URL` | Base URL used in alert deep links (`/?story=<id>`). |
+| `FINN_ADMIN_TOKEN` | Enables `POST /api/admin/refresh` (header `X-Admin-Token`). |
+| `FINN_AUTO_REFRESH`, `FINN_REFRESH_SECONDS` | In-process refresh thread (default on, every 6h). |
+| `TAVILY_API_KEY` | Optional web lookup for executive bios. **Optional, untested**: no key was available; bios come from the filing's own profile annexure. |
+| `VITE_EXTRA_APPEARANCE=1` (build time) | Shows the extra papers, accents and text sizes. Off by default. |
+
+## Operations
+
+- **Snapshot fallback.** `seed/finn_seed.db` (committed, ~3.6 MB, no secrets) holds filings, prices, enrichments and research. It's loaded when the database is empty or when NSE and BSE both return nothing; the Brief then shows "Data as of <date> (snapshot)". Rebuild it with `python scripts/make_snapshot.py`.
+- **Announcement sources.** NSE with retries, falling back to BSE (scrip codes in `finn/config.py`). The source used is in `/api/health`.
+- **Warm-up.** `python scripts/warmup.py [TICKERS...]` enriches every story in every window and pre-computes research for the portfolio and research list, so a cold visitor never waits. Cached items are skipped.
+- **Health.** `GET /api/health`: table row counts, last refresh, data source (live NSE / BSE / snapshot), recent fetch errors.
+- **External cron.** `python -m backend.ingest --refresh` from the repo root, or `POST /api/admin/refresh` with `X-Admin-Token`. Refreshes are lock-guarded and idempotent; alerts are never re-sent (`notified_alerts`).
+
+## Testing the model paths without a key (replay mode)
+
+`FINN_LLM_PROVIDER=replay` writes each prompt to `backend/data/replay/<hash>.prompt` and reads the answer from `<hash>.answer`. The committed fixtures were answered by hand from the source documents and exercise the whole pipeline without spending anything.
 
 ## Layout
 ```
 backend/
-  app.py                 FastAPI + static PWA + background refresh
-  ingest.py              daily pipeline (prices → filings → classify → pre-enrich)
-  finn/llm.py            two-tier router (Anthropic or Gemini), cache, cost log
-  finn/brief.py          windowed digest, alert rules, settings
-  finn/enrich.py         results / management / one-liner enrichment
-  finn/research.py       numbers + promised-vs-delivered funnel
-  finn/screener.py       tables + document links for any ticker
-  finn/ingest/*          prices, NSE announcements, rule classifier
-frontend/src/            React PWA: Brief, Card, Research, Watch
+  app.py                 FastAPI: brief, cards, research jobs, holdings, health, admin refresh, static PWA
+  ingest.py              refresh pipeline (prices → filings → classify → size check → enrich → notify)
+  finn/llm.py            two-tier router, retries/fallback, cache, cost log
+  finn/brief.py          window rules, grouping, fallback headlines, why-it's-here
+  finn/materiality.py    claimed-amount parsing, size rule
+  finn/enrich.py         results / management / one-liners
+  finn/research.py       numbers, lease view, promises → later-call KPIs → judge
+  finn/screener.py       tables, documents, schedules, rate-limit handling
+  finn/notify.py         Telegram + de-duplication
+  finn/snapshot.py       seed export/load
+  finn/ingest/*          prices (.NS/.BO), announcements (NSE/BSE), classifier
+  scripts/               make_snapshot.py, warmup.py
+  tests/                 pytest
+frontend/src/            React PWA: Brief, Card, Research, Watch (Settings), Appearance, theme
+seed/finn_seed.db        snapshot fallback
 ```
-
-## Testing the LLM paths without a key (replay mode)
-`FINN_LLM_PROVIDER=replay` writes every prompt FINN would send to `backend/data/replay/<hash>.prompt` and reads the answer from `<hash>.answer`. The fixtures in that folder were answered by hand from the source documents. They exercise the full pipeline: page selection → prompt → JSON parsing → grounding checks → caching → UI. They also caught real bugs before any key existed:
-- Results extraction was being fed commentary and auditor pages, not the P&L table. It now uses a statement-page scorer.
-- PAT was ambiguous on consolidated statements. It's now defined as the profit attributable to owners.
-- Management filings often say the profile "was provided in the intimation dated X". FINN now follows that reference to the earlier filing.
-- A failed judging call was cached permanently. Failures are no longer cached.
-- The judging prompt didn't know today's date, so it couldn't tell "missed" from "pending".
-- Results-meeting *notices* and AGM scrutinizer reports were ranked as results.

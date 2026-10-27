@@ -59,6 +59,12 @@ def _filing_text(ann, keywords, k=2, chars=9000):
     return "\n---\n".join(texts[i] for i in idx)[:chars]
 
 
+def derive_ebitda(pbt, finance_costs, depreciation, other_income):
+    """EBITDA when the filing doesn't print it: PBT + finance costs + depreciation - other income, per column.
+    Other income is removed because it isn't operating; this is the method stated on the results card."""
+    return [round(p + f + d - o, 2) for p, f, d, o in zip(pbt, finance_costs, depreciation, other_income)]
+
+
 def results_headline(rows):
     """Plain, checkable headline from the computed YoY moves, e.g. 'Revenue up 16% on last year, EBITDA flat, PAT up 33%'.
     Written in code: a model asked for a one-liner called a flat-EBITDA quarter 'robust operational performance'."""
@@ -95,8 +101,7 @@ def _results(ann):
                 ebitda = trip("ebitda")
                 parts = [trip(k) for k in ("pbt", "finance_costs", "depreciation", "other_income")]
                 if not ebitda and all(parts):
-                    pbt, fin, dep, oth = parts
-                    ebitda = [round(pbt[i] + fin[i] + dep[i] - oth[i], 2) for i in range(3)]
+                    ebitda = derive_ebitda(*parts)
                 rows = [_row(label, *v) for label, v in
                         (("Revenue", trip("revenue")), ("EBITDA", ebitda), ("PBT", trip("pbt")), ("PAT", trip("pat"))) if v]
                 # Grounding check: copied figures must literally appear in the filing (EBITDA may be derived).
@@ -129,6 +134,8 @@ NAME = re.compile(r"\b(?:Mr|Ms|Mrs|Dr|Shri|Smt)\.?\s+([A-Z][a-zA-Z.]+(?:[ ]+[A-Z
 
 
 def _web_profile(name, company_name):
+    """Optional, UNTESTED: no Tavily key was available while building. Without TAVILY_API_KEY this returns None and the
+    bio comes only from the filing's own profile annexure (the tested path)."""
     key = os.getenv("TAVILY_API_KEY")
     if not key:
         return None
