@@ -181,7 +181,12 @@ def analysis(symbol: str, refresh=False) -> dict:
     judged = llm.complete_json(
         f"Company: {num['name']} ({symbol}). Use ONLY the material below - no outside knowledge.\n"
         f"Today is {datetime.now():%d %b %Y}; the latest reported quarter is {(num['quarters']['sales'] or [{}])[-1].get('period', 'unknown')}. "
-        "A promise whose horizon is after that quarter is 'pending', however it is trending; say which way in the evidence.\n"
+        "Verdict rules: 'delivered' if the reported numbers already meet the target, even before its deadline. "
+        "'missed' only if the deadline has passed and the numbers fall short. 'partial' if the deadline passed and it was "
+        "partly met. Otherwise 'pending', and say in the evidence which way it is trending. Evidence must use numbers that "
+        "measure the same thing as the promise; if none exist, say so rather than citing something else.\n"
+        "Ledger rules: at most 7 entries. Merge repeats of the same target into one entry (keep the earliest said_in, mention "
+        "it was reaffirmed). Leave out descriptions that are not commitments (headcount after a merger, company size).\n"
         "Note: reported margins are operating (EBITDA) margins; flag it if management guided on a different margin.\n\n"
         f"OPENING OF LATEST {source_kind.upper()} (for business description):\n{opening[:6000]}\n\n"
         f"MANAGEMENT PROMISES (oldest calls are the most checkable):\n{json.dumps(promises, ensure_ascii=False)[:9000]}\n\n"

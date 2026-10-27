@@ -54,32 +54,54 @@ def _filing_text(ann, keywords, k=2, chars=9000):
     return "\n---\n".join(texts[i] for i in idx)[:chars]
 
 
+def results_headline(rows):
+    """Plain, checkable headline from the computed YoY moves, e.g. 'Revenue up 16% on last year, EBITDA flat, PAT up 33%'.
+    Written in code: a model asked for a one-liner called a flat-EBITDA quarter 'robust operational performance'."""
+    def word(v):
+        if v is None:
+            return None
+        if abs(v) < 2:
+            return "flat"
+        return f"{'up' if v > 0 else 'down'} {int(abs(v) + 0.5)}%"  # half-up, as investors expect
+    bits = [(r["metric"], word(r["yoy"])) for r in rows if r["metric"] in ("Revenue", "EBITDA", "PAT")]
+    bits = [f"{m} {w}" for m, w in bits if w]
+    if not bits:
+        return None
+    return bits[0] + " on last year" + ("" if len(bits) == 1 else ", " + ", ".join(bits[1:]))
+
+
 def _results(ann):
     if llm.available():
         texts = pages(ann.get("attachment") or "")
         text = "\n---\n".join(texts[i] for i in statement_pages(texts, k=1))[:12000]
         if text:
+            # The model only copies line items; every derived number (EBITDA, growth, the headline) is computed here.
             got = llm.complete_json(
-                "From this quarterly results filing, extract CONSOLIDATED figures if present (else standalone) for the latest quarter, "
-                "the previous quarter, and the same quarter last year. EBITDA = profit before tax + finance costs + depreciation - other income "
-                "if not stated. PAT = profit attributable to owners of the company when shown, else net profit after tax. "
-                "Quarter columns only, never six-month or full-year columns. Use the filing's unit.\n"
-                '{"basis": "consolidated|standalone", "unit": "e.g. ₹ crore", "period": "e.g. Q2 FY27", '
-                '"revenue": [cur, prev_q, year_ago], "ebitda": [..], "pbt": [..], "pat": [..], '
-                '"one_liner": "what an investor should notice, max 18 words"}\n\n' + text,
-                tier="cheap", max_tokens=600)
+                "From this quarterly results filing, copy CONSOLIDATED figures if present (else standalone) for the latest quarter, "
+                "the previous quarter, and the same quarter last year, exactly as printed. Quarter columns only, never six-month "
+                "or full-year columns. PAT = profit attributable to owners of the company when shown, else net profit after tax. "
+                "If EBITDA is printed as its own line, copy it; otherwise leave ebitda as null. Do not calculate anything.\n"
+                '{"basis": "consolidated|standalone", "unit": "crore|lakh|million", "period": "e.g. Q2 FY27", '
+                '"revenue": [cur, prev_q, year_ago], "other_income": [..], "finance_costs": [..], "depreciation": [..], '
+                '"pbt": [..], "pat": [..], "ebitda": null}\n\n' + text,
+                tier="cheap", max_tokens=700)
             if got and got.get("revenue"):
-                rows = []
-                for key, label in (("revenue", "Revenue"), ("ebitda", "EBITDA"), ("pbt", "PBT"), ("pat", "PAT")):
-                    v = got.get(key) or []
-                    if len(v) == 3 and all(isinstance(x, (int, float)) for x in v):
-                        rows.append(_row(label, *v))  # growth computed here, not by the model
-                # Grounding check: reported figures must literally appear in the filing (EBITDA may be derived).
+                trip = lambda k: v if isinstance(v := got.get(k), list) and len(v) == 3 and all(isinstance(x, (int, float)) for x in v) else None
+                ebitda = trip("ebitda")
+                parts = [trip(k) for k in ("pbt", "finance_costs", "depreciation", "other_income")]
+                if not ebitda and all(parts):
+                    pbt, fin, dep, oth = parts
+                    ebitda = [round(pbt[i] + fin[i] + dep[i] - oth[i], 2) for i in range(3)]
+                rows = [_row(label, *v) for label, v in
+                        (("Revenue", trip("revenue")), ("EBITDA", ebitda), ("PBT", trip("pbt")), ("PAT", trip("pat"))) if v]
+                # Grounding check: copied figures must literally appear in the filing (EBITDA may be derived).
                 flat = re.sub(r"[,\s]", "", text)
                 missing = [r["metric"] for r in rows if r["metric"] != "EBITDA" and
                            any(f"{x:.2f}".rstrip("0").rstrip(".") not in flat for x in (r["current"], r["prev_q"], r["year_ago"]))]
-                return {"type": "results", "period": got.get("period"), "unit": got.get("unit"), "basis": got.get("basis"),
-                        "rows": rows, "headline": got.get("one_liner"), "source": "results filing",
+                unit = str(got.get("unit") or "").lower()
+                unit = next((f"₹ {u}" for u in ("crore", "lakh", "million") if u in unit), "₹ crore")
+                return {"type": "results", "period": got.get("period"), "unit": unit, "basis": got.get("basis"),
+                        "rows": rows, "headline": results_headline(rows), "source": "results filing",
                         "note": f"Could not find {', '.join(missing)} figures verbatim in the filing; verify before relying." if missing else
                                 "Every figure checked against the filing text.", "stale": bool(missing)}
     try:
@@ -94,7 +116,7 @@ def _results(ann):
             qc["note"] = (f"This filing is newer than the last compiled quarter ({qc['period']}). "
                           "Showing that quarter; the LLM reader extracts the new numbers from the filing itself.")
             qc["stale"] = True
-        return {"type": "results", **qc, "headline": None}
+        return {"type": "results", **qc, "headline": None if qc.get("stale") else results_headline(qc["rows"])}
     return {"type": "summary", "text": clean_detail(ann.get("detail"))}
 
 
@@ -137,6 +159,18 @@ def _referenced_profiles(ann, text):
     return "\n---\n".join(extra)
 
 
+TITLES = [(r"managing director (and|&) chief executive officer", "MD & CEO"), (r"chief executive officer", "CEO"),
+          (r"chief financial officer", "CFO"), (r"chief operating officer", "COO"), (r"\bmanaging director\b", "MD"),
+          (r"whole[- ]time director", "Whole-time Director")]
+
+
+def short_title(role):
+    """Filings spell titles out in full; headlines read better with the abbreviations investors use."""
+    for pat, short in TITLES if role else []:
+        role = re.sub(pat, short, role, flags=re.I)
+    return role
+
+
 def _management(ann):
     text = _filing_text(ann, PROFILE_WORDS, k=3, chars=10000)
     if text:
@@ -146,7 +180,8 @@ def _management(ann):
         got = llm.complete_json(
             "From this management-change filing, list each person whose role changes.\n"
             '[{"name": "", "role": "", "change": "appointed|resigned|retired|redesignated", "effective": "", '
-            '"background": "2 lines from the filing\'s profile annexure if present, else empty", "replaces": ""}]\n\n' + text,
+            '"background": "if the filing has a profile, summarise it in your own words in at most 35 words: previous roles '
+            'and education. Else empty.", "replaces": ""}]\n\n' + text,
             tier="cheap", max_tokens=700)
         people = [p for p in (got or []) if isinstance(p, dict) and p.get("name")]
     if not people and text:
@@ -167,7 +202,12 @@ def _management(ann):
     if people:
         # Lead with the incoming person: that is who the investor needs to know about.
         p = next((x for x in people if x.get("change") == "appointed"), people[0])
-        role, ch = p.get("role"), p.get("change")
+        for x in people:
+            x["name"] = re.sub(r"^(Mr|Ms|Mrs|Dr|Shri|Smt)\.?\s+", "", x["name"]).strip()
+            x["role"] = short_title(x.get("role"))
+            if x.get("replaces"):
+                x["replaces"] = re.sub(r"^(Mr|Ms|Mrs|Dr|Shri|Smt)\.?\s+", "", x["replaces"]).strip()
+        role, ch = re.sub(r"\s*\(.*?\)", "", p.get("role") or "") or None, p.get("change")
         if ch == "appointed" and role:
             headline = f"New {role}: {p['name']}" + (f", replacing {p['replaces']}" if p.get("replaces") else "")
         elif ch and role:

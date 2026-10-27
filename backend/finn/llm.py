@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime
 
 import requests
@@ -22,13 +23,17 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 MODELS = {
     "anthropic": {"cheap": "claude-haiku-5-5", "strong": "claude-sonnet-5-5"},
-    "gemini": {"cheap": "gemini-2.5-flash-lite", "strong": "gemini-2.5-flash"},
+    # Google retires model names for new keys; override with FINN_GEMINI_CHEAP / FINN_GEMINI_STRONG.
+    "gemini": {"cheap": os.getenv("FINN_GEMINI_CHEAP", "gemini-3.5-flash-lite"),
+               "strong": os.getenv("FINN_GEMINI_STRONG", "gemini-3.5-flash")},
     "replay": {"cheap": "replay-cheap", "strong": "replay-strong"},
 }
 # USD per 1M tokens (input, output), for the cost log only.
 PRICES = {
     "claude-haiku-5-5": (1.0, 5.0), "claude-sonnet-5-5": (3.0, 15.0),
     "gemini-2.5-flash-lite": (0.10, 0.40), "gemini-2.5-flash": (0.30, 2.50),
+    # Estimates for the cost log; on the free tier the real spend is zero.
+    "gemini-3.5-flash-lite": (0.10, 0.40), "gemini-3.5-flash": (0.30, 2.50), "gemini-3.8-flash": (0.30, 2.50),
 }
 
 
@@ -58,7 +63,7 @@ def _anthropic(model, system, prompt, max_tokens):
         headers={"x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
         json={"model": model, "max_tokens": max_tokens, "system": system,
               "messages": [{"role": "user", "content": prompt}]},
-        timeout=180,
+        timeout=45,
     )
     r.raise_for_status()
     j = r.json()
@@ -69,17 +74,40 @@ def _anthropic(model, system, prompt, max_tokens):
 def _gemini(model, system, prompt, max_tokens):
     r = requests.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        params={"key": GEMINI_KEY},
+        headers={"x-goog-api-key": GEMINI_KEY},  # header, not ?key=, so the key never lands in URLs or error logs
         json={"systemInstruction": {"parts": [{"text": system}]},
               "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-              "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.2}},
-        timeout=180,
+              # Thinking models spend output tokens on reasoning first; without headroom the answer (often JSON) is cut off.
+              "generationConfig": {"maxOutputTokens": max_tokens + 4096, "temperature": 0.2}},
+        timeout=45,
     )
     r.raise_for_status()
     j = r.json()
-    text = "".join(p.get("text", "") for p in j["candidates"][0]["content"]["parts"])
+    cand = j["candidates"][0]
+    if cand.get("finishReason") == "MAX_TOKENS":
+        print(f"llm: {model} hit the token limit; output may be truncated")
+    text = "".join(p.get("text", "") for p in cand.get("content", {}).get("parts", []) if not p.get("thought"))
     u = j.get("usageMetadata", {})
     return text, u.get("promptTokenCount", 0), u.get("candidatesTokenCount", 0)
+
+
+RETRYABLE = {429, 500, 503, 504}
+
+
+def _retryable(e):
+    if isinstance(e, (requests.Timeout, requests.ConnectionError)):
+        return True
+    return e.response is not None and e.response.status_code in RETRYABLE
+
+
+def _with_retry(call, *args, attempts=3):
+    for i in range(attempts):
+        try:
+            return call(*args)
+        except (requests.HTTPError, requests.Timeout, requests.ConnectionError) as e:
+            if not _retryable(e) or i == attempts - 1:
+                raise
+            time.sleep(2 * 2 ** i)  # 2s, 4s
 
 
 def complete(prompt: str, tier="cheap", system="You are a precise financial analyst. Be terse.", max_tokens=1500):
@@ -100,7 +128,17 @@ def complete(prompt: str, tier="cheap", system="You are a precise financial anal
             return ans.read_text(encoding="utf-8")
         (REPLAY_DIR / f"{key[:16]}.prompt").write_text(f"[{tier}]\n{system}\n\n{prompt}", encoding="utf-8")
         return None
-    text, tin, tout = (_anthropic if p == "anthropic" else _gemini)(model, system, prompt, max_tokens)
+    call = _anthropic if p == "anthropic" else _gemini
+    try:
+        text, tin, tout = _with_retry(call, model, system, prompt, max_tokens)
+    except (requests.HTTPError, requests.Timeout, requests.ConnectionError) as e:
+        # Free-tier strong models are often overloaded; a cheap-model answer beats no answer.
+        if tier == "strong" and _retryable(e):
+            print(f"llm: {model} unavailable ({type(e).__name__}), falling back to {MODELS[p]['cheap']}")
+            model = MODELS[p]["cheap"]
+            text, tin, tout = _with_retry(call, model, system, prompt, max_tokens)
+        else:
+            raise
     pin, pout = PRICES.get(model, (0, 0))
     cost = (tin * pin + tout * pout) / 1e6
     conn.execute("INSERT OR REPLACE INTO llm_cache VALUES (?,?,?,?,?)",
