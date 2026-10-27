@@ -137,6 +137,8 @@ def complete(prompt: str, tier="cheap", system="You are a precise financial anal
             print(f"llm: {model} unavailable ({type(e).__name__}), falling back to {MODELS[p]['cheap']}")
             model = MODELS[p]["cheap"]
             text, tin, tout = _with_retry(call, model, system, prompt, max_tokens)
+            # Cache under the cheap model's key, so the next run still tries the strong model for this prompt.
+            key = hashlib.sha256(f"{model}\n{system}\n{prompt}".encode()).hexdigest()
         else:
             raise
     pin, pout = PRICES.get(model, (0, 0))
