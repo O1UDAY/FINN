@@ -22,15 +22,22 @@ def run(days=30, docs=False, pre_enrich_hours=72):
     print("announcements:", fetch_announcements(conn, pf, days=days))
     print("llm-classified:", classify_unknowns(conn))
 
-    # Push is proactive: pre-compute enrichment for recent material filings so cards open instantly.
-    since = datetime.now() - timedelta(hours=pre_enrich_hours)
-    for r in conn.execute("SELECT * FROM announcements WHERE importance >= 75").fetchall():
-        ts = parse_ts(r["ts"])
-        if ts and ts >= since:
-            try:
-                enrich(dict(r))
-            except Exception as e:
-                print("enrich failed", r["id"], e)
+    # Size check for legal items, before anything is ranked.
+    from finn.materiality import SIZE_CHECKED, check_filing
+    for r in conn.execute("SELECT * FROM announcements WHERE material IS NULL AND amount_cr IS NULL").fetchall():
+        if r["category"] in SIZE_CHECKED:
+            check_filing(conn, dict(r))
+
+    # Push is proactive: enrich every item that will render as a story (any window), so no card waits on a tap.
+    from finn.brief import build_brief
+    story_ids = {c["id"] for c in build_brief(24 * 30, enrich_missing=False)["cards"] if c["kind"] == "filing"}
+    done = {r["id"] for r in conn.execute("SELECT id FROM enrichments")}
+    for aid in story_ids - done:
+        r = conn.execute("SELECT * FROM announcements WHERE id=?", (aid,)).fetchone()
+        try:
+            enrich(dict(r))
+        except Exception as e:
+            print("enrich failed", aid, e)
 
     if docs:
         for sym in pf + RESEARCH:

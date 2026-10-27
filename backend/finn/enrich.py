@@ -40,6 +40,11 @@ def enrich(ann: dict, refresh=False) -> dict:
     else:
         out = _one_liner(ann)
     out["llm"] = llm.available()
+    from .ingest.classify import rescore
+    blob = " ".join(str(out.get(k) or "") for k in ("headline", "text"))
+    imp = rescore(cat, blob, ann.get("importance") or 0)
+    if imp != ann.get("importance"):
+        conn.execute("UPDATE announcements SET importance=? WHERE id=?", (imp, ann["id"]))
     conn.execute("INSERT OR REPLACE INTO enrichments VALUES (?,?,?)",
                  (ann["id"], json.dumps(out, ensure_ascii=False), datetime.now().isoformat(timespec="seconds")))
     conn.commit()

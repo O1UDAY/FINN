@@ -26,9 +26,22 @@ CREATE TABLE IF NOT EXISTS llm_cache (
 """
 
 
+# Columns added after the first release; added in place so existing databases keep working.
+MIGRATIONS = [
+    "ALTER TABLE announcements ADD COLUMN amount_cr REAL",   # largest ₹ amount found in the filing, in crore
+    "ALTER TABLE announcements ADD COLUMN mcap_cr REAL",     # market cap used for the materiality check
+    "ALTER TABLE announcements ADD COLUMN material INTEGER", # 1 material, 0 immaterial vs size, NULL not checked/no amount
+]
+
+
 def connect() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for m in MIGRATIONS:
+        try:
+            conn.execute(m)
+        except sqlite3.OperationalError:
+            pass  # already applied
     return conn

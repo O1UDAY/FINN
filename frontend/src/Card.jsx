@@ -55,8 +55,9 @@ export default function Card({ item, lead, onDone, onAsk }) {
           <span>{cat(item.category)}</span>
           <span className="sep">|</span>
           <span>{ago(item.ts)}</span>
-          {item.alert && <><span className="sep">|</span><span className="alert">Your alert</span></>}
+          {item.related > 0 && <><span className="sep">|</span><span>+{item.related} related</span></>}
         </div>
+        {item.why && <div className={"why" + (item.alert ? " alert" : "")}>{item.why}</div>}
 
         {open && item.kind === "filing" && (
           <div className="body">

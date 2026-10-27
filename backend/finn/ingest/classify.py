@@ -4,7 +4,7 @@ import re
 # Order matters: first match wins, so specific patterns go before general ones.
 RULES = [
     # Routine paperwork first: its boilerplate mentions SEBI/regulations and would otherwise look like litigation.
-    ("unclassified", r"trading window|depositories and participants|allotment of securities|esop|esos|compliance certificate"),
+    ("unclassified", r"trading window|depositories and participants|allotment of securities|esop|esos|compliance certificate|esg rating|\besg\b"),
     ("press_release", r"bagging|receiving of orders|order win|contract"),
     ("M&A", r"initial public offer|red herring"),
     ("agm_egm", r"sc?rutini[sz]er|voting results"),  # filings misspell it "Srutinizer"
@@ -30,6 +30,18 @@ RULES = [
 COMPILED = [(c, re.compile(p, re.I)) for c, p in RULES]
 NOTICE = re.compile(r"to announce|is scheduled|scheduled on|to consider and approve|intimation of board meeting|will be held|prior intimation", re.I)
 
+# Within-category judgement: the same category can be headline news or paperwork. First match wins.
+ADJUST = [(c, re.compile(p, re.I), imp) for c, p, imp in [
+    ("management_change", r"managing director|\bmd\b|chief executive|\bceo\b|chief financial|\bcfo\b|chairman|whole[- ]time director|independent director|additional director", 80),
+    ("management_change", r".", 50),  # senior management personnel, CISO, company secretary: worth a line, not a lead
+    ("credit_rating", r"upgrad|downgrad|watch|outlook (revised|changed)|negative|withdraw", 75),
+    ("credit_rating", r"reaffirm|assign", 40),
+    ("M&A", r"incorporat|wholly[- ]owned subsidiary|step[- ]down subsidiary|investment in subsidiary|capital infusion", 45),
+    ("press_release", r"foundation|award|recogni[sz]|csr|sustainab|felicitat|ranked", 30),
+    ("press_release", r"bagging|receiving of orders|order|contract|wins|launch", 55),
+    ("fund_raise", r"allotment|monitoring agency|commercial paper|employee stock option|\besop", 40),
+]]
+
 # 0-100: how much a category typically deserves an investor's attention.
 IMPORTANCE = {
     "results": 90, "M&A": 85, "management_change": 80, "fund_raise": 75, "litigation": 70,
@@ -46,5 +58,17 @@ def classify(subject: str, detail: str = "") -> tuple[str | None, int]:
             # A board-meeting date for results is a calendar entry, not news; rank it like routine scheduling.
             if cat == "results" and NOTICE.search(text):
                 return cat, 25
+            for c, rx, imp in ADJUST:
+                if c == cat and rx.search(text):
+                    return cat, imp
             return cat, IMPORTANCE[cat]
-    return None, 30  # unknown: candidate for LLM fallback
+    return None, 30
+
+
+def rescore(cat: str, text: str, current: int) -> int:
+    """Re-apply the within-category rules to richer text (the enrichment), which often says what the NSE line hides,
+    e.g. that a 'Credit Rating' filing is a reaffirmation."""
+    for c, rx, imp in ADJUST:
+        if c == cat and rx.search(text or ""):
+            return imp
+    return current  # unknown: candidate for LLM fallback

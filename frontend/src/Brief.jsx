@@ -34,7 +34,7 @@ export default function Brief({ onAsk }) {
       <h1 className="page-title">The Brief</h1>
       <p className="standfirst">
         {!data ? " " : open.length
-          ? <>{open.length} {open.length === 1 ? "item" : "items"} across your {holdings} holdings{data.counts.alerts ? `, ${data.counts.alerts} matching your alerts` : ""}. {data.counts.routine} routine filings are at the bottom.</>
+          ? <>{open.length} {open.length === 1 ? "item" : "items"} across your {holdings} holdings{data.counts.alerts ? `, ${data.counts.alerts} matching your alerts` : ""}. {data.counts.routine} more filed, folded at the bottom.</>
           : total ? "You've read everything in this window." : "No material filings or unusual moves in this window."}
       </p>
 
@@ -60,8 +60,12 @@ export default function Brief({ onAsk }) {
       {data?.routine.length > 0 && (
         <section className="notices">
           <button onClick={() => setShowRoutine((s) => !s)} aria-expanded={showRoutine}>
-            <span>Routine filings ({data.routine.length})</span><span>{showRoutine ? "Hide" : "Show"}</span>
+            <span>Also filed ({data.routine.length})</span><span>{showRoutine ? "Hide" : "Show"}</span>
           </button>
+          <p className="fold-counts">
+            {Object.entries(data.folded_by_category || {}).sort((a, b) => b[1] - a[1])
+              .map(([c, n]) => `${cat(c)} ${n}`).join(" · ")}
+          </p>
           {showRoutine && (
             <ul>
               {data.routine.map((r) => (

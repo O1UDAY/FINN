@@ -294,3 +294,6 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 [data-paper="stocks"] .tabs button.on, [data-paper="stocks"] .tabs button.on svg { color: var(--oxford); }
 .forced-note { font-size: 13px; color: var(--ink-3); margin: 8px 0 0; }
 .segmented[aria-disabled="true"] { opacity: .45; }
+.why { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
+.why.alert { color: var(--claret); }
+.fold-counts { font-size: 13px; color: var(--ink-3); margin: -4px 0 8px; line-height: 1.5; }
