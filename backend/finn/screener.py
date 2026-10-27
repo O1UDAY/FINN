@@ -46,6 +46,9 @@ def company(symbol: str) -> dict:
     symbol = symbol.upper().strip()
     soup = BeautifulSoup(_html(symbol), "html.parser")
     out = {"symbol": symbol, "name": (soup.select_one("h1") or soup.new_tag("x")).get_text(strip=True), "tables": {}}
+    out["industry"] = [a.get_text(strip=True) for a in soup.select('#peers a[href*="/market/"]')]
+    m = re.search(r'data-company-id="(\d+)"', str(soup))
+    out["company_id"] = m.group(1) if m else None
 
     for sec in SECTIONS:
         t = soup.select_one(f"section#{sec} table")
@@ -128,3 +131,27 @@ def quarter_compare(c: dict) -> dict | None:
 def _row(metric, cur, prev, yago):
     pct = lambda a, b: round((a / b - 1) * 100, 1) if a is not None and b not in (None, 0) and b > 0 else None
     return {"metric": metric, "current": cur, "prev_q": prev, "year_ago": yago, "qoq": pct(cur, prev), "yoy": pct(cur, yago)}
+
+
+def schedule(c: dict, parent: str, section: str) -> dict:
+    """Line-item breakdown behind one of screener's '+' rows (e.g. lease liabilities inside Borrowings), cached 12h.
+    Returns {item: [values aligned to that table's columns]}; empty when unavailable."""
+    if not c.get("company_id"):
+        return {}
+    conn = connect()
+    key = f"{c['symbol']}::{section}::{parent}"
+    row = conn.execute("SELECT html, fetched FROM pages WHERE symbol=?", (key,)).fetchone()
+    if row and datetime.fromisoformat(row["fetched"]) > datetime.now() - timedelta(hours=12):
+        raw = json.loads(row["html"])
+    else:
+        try:
+            r = requests.get(f"https://www.screener.in/api/company/{c['company_id']}/schedules/",
+                             params={"parent": parent, "section": section, "consolidated": ""}, headers=UA, timeout=20)
+            raw = r.json() if r.ok else {}
+        except (requests.RequestException, ValueError):
+            raw = {}
+        conn.execute("INSERT OR REPLACE INTO pages VALUES (?,?,?)", (key, json.dumps(raw), datetime.now().isoformat()))
+        conn.commit()
+    cols = c["tables"].get(section, {}).get("cols", [])
+    return {k: [_num(str(v.get(col, ""))) if isinstance(v, dict) else None for col in cols]
+            for k, v in raw.items() if isinstance(v, dict)}

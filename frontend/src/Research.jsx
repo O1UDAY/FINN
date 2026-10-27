@@ -74,8 +74,9 @@ function Header({ n }) {
           <ul className="points">
             {n.signals.map((x) => (
               <li key={x.text}>
-                {x.kind === "good" ? <IconUp className="up" /> : x.kind === "bad" ? <IconDown className="down" /> : <IconDot className="faint" />}
-                <span>{x.text}</span>
+                {x.kind === "good" ? <IconUp className="up" /> : x.kind === "bad" ? <IconDown className="down" />
+                  : <IconDot className={x.kind === "check" ? "warn-ico" : "faint"} />}
+                <span>{x.text}{x.note && <span className="sig-note">{x.note}</span>}</span>
               </li>
             ))}
           </ul>
@@ -194,10 +195,13 @@ function Charts({ n }) {
       {!n.lender && (
         <section className="sec">
           <h2>Cash and debt</h2>
-          <div className="chart-title">Does profit turn into cash? <span>{n.cash.conversion != null ? `${Math.round(n.cash.conversion * 100)}% over 5 yrs` : ""}</span></div>
-          <PairBars a={n.cash.cfo} b={n.cash.pat} la="Cash from operations" lb="Reported profit" />
-          <div className="chart-title">Debt to equity <span>times</span></div>
-          <Bars series={n.balance.de} format={(x) => fmt(x, 2)} />
+          <div className="chart-title">Does profit turn into cash? <span>{(n.lease_flag ? n.cash.conversion_ex_lease : n.cash.conversion) != null ? `${Math.round((n.lease_flag ? n.cash.conversion_ex_lease : n.cash.conversion) * 100)}% over 5 yrs` : ""}</span></div>
+          {n.lease_flag && n.cash.cfo_ex_lease?.length > 0
+            ? <PairBars a={n.cash.cfo_ex_lease} b={n.cash.pat} la="Cash from operations after lease payments" lb="Reported profit" />
+            : <PairBars a={n.cash.cfo} b={n.cash.pat} la="Cash from operations" lb="Reported profit" />}
+          {n.lease_flag && <p className="note warn">Lease-heavy ({n.lease_reason}): figures above are after lease payments.</p>}
+          <div className="chart-title">Debt to equity <span>{n.lease_flag && n.balance.de_ex_lease?.length ? "times, excluding leases" : "times"}</span></div>
+          <Bars series={n.lease_flag && n.balance.de_ex_lease?.length ? n.balance.de_ex_lease : n.balance.de} format={(x) => fmt(x, 2)} />
           <div className="chart-title">Cash conversion cycle <span>days</span></div>
           <Bars series={n.balance.ccc} />
         </section>
