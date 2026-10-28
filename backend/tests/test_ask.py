@@ -51,6 +51,19 @@ def test_visitor_key_wins_for_its_request_only():
     assert llm.gemini_key() != "visitor-key-123"
 
 
+def test_key_format_picks_the_provider():
+    from finn import llm
+    assert llm.key_provider("sk-ant-api03-abc") == "anthropic"
+    assert llm.key_provider("sk-proj-abc") == "openai"
+    assert llm.key_provider("AIzaSyabc") == "gemini"
+    token = llm.USER_KEY.set("sk-proj-abc")
+    try:
+        assert llm.provider() == "openai" and llm.key_for("openai") == "sk-proj-abc"
+        assert llm.key_for("gemini") != "sk-proj-abc"  # never sent to the wrong service
+    finally:
+        llm.USER_KEY.reset(token)
+
+
 def test_model_failure_is_not_reported_as_no_answer(monkeypatch):
     _setup(monkeypatch, None)
     r = A.ask("DMART", "What amount is involved?", "a1")

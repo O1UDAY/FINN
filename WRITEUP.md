@@ -35,11 +35,11 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 | Alerts were only checked every 6 hours | Filings and the alerts on them checked every 15 minutes; prices (end-of-day) fetched once after the 16:00 IST close; the 30-day sweep stays 6-hourly | A filings check takes 42s and found 4 new filings the last full run hadn't. Alert lag: up to 6h → up to 15 min while the server is awake |
 | One way to interact | Listen to the Brief; ask any story or research page a question, answered only from primary documents with verified quotes | Jubilant "margins?" → "EBITDA margins improved by 110 basis points year-on-year to 20.5%", Feb 2026 call p. 5. DMart commercial-paper filing "amount?" → "Rs 500 crores", p. 1. "CEO's favourite colour?" → "Not in the documents searched." ~12–20s per question on the cheap model; none use the strong model's daily cap |
 | A cut-off PDF download was cached, so that filing could never be read | Only complete PDFs (ending in %%EOF) are saved; a partial one is retried, and a broken saved copy is fetched again | 1 of 211 saved PDFs was cut off (HDFC Q2 results: 983 KB of 1,193 KB, 0 pages). Now 24 pages, and "net profit?" → "₹ 385.7 billion" for the half year, p. 21 |
-| No tests | pytest suite | 37 tests pass |
+| No tests | pytest suite | 38 tests pass |
 
 **Cost.** Measured over the whole build: $0.106 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.
 
-**Free-tier limit.** Gemini's free tier allows 20 strong-model requests a day. Research needs one per new company (cached afterwards), so the cap covers about 20 new companies a day; past it FINN falls back to the cheap model and stops retrying, so retries don't eat into the cap. A reviewer who hits it can paste their own free Gemini key in Settings: it is checked with one tiny call, kept only in their browser, sent with their requests and never stored on the server.
+**Free-tier limit.** Gemini's free tier allows 20 strong-model requests a day. Research needs one per new company (cached afterwards), so the cap covers about 20 new companies a day; past it FINN falls back to the cheap model and stops retrying, so retries don't eat into the cap. A reviewer who hits it can paste their own AI key in Settings (Gemini, Claude or OpenAI, detected from the key): it is checked with one tiny call, kept only in their browser, sent with their requests and never stored on the server.
 
 ## Deliberately left out
 - Intraday data. The brief asks for end of day, and intraday data would add cost without adding judgement.

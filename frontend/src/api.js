@@ -1,9 +1,9 @@
 const BASE = import.meta.env.VITE_API_URL || "";
 
 async function req(path, opts = {}) {
-  // A visitor's own Gemini key, if they set one in Settings: kept in this browser, sent with each request.
-  const key = local.get("gemini_key", null);
-  const headers = key ? { ...(opts.headers || {}), "X-Gemini-Key": key } : opts.headers;
+  // A visitor's own AI key, if they set one in Settings: kept in this browser, sent with each request.
+  const key = local.get("ai_key", null);
+  const headers = key ? { ...(opts.headers || {}), "X-AI-Key": key } : opts.headers;
   const r = await fetch(BASE + path, { ...opts, headers });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));

@@ -21,18 +21,37 @@ from .db import connect
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY") or os.getenv("FINN_ANTHROPIC_KEY")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-# A visitor's own Gemini key, set per request from the X-Gemini-Key header (see app.py). Never stored or logged.
-USER_KEY: ContextVar[str | None] = ContextVar("user_gemini_key", default=None)
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+# A visitor's own key (Gemini, Claude or OpenAI), set per request from the X-AI-Key header (see app.py).
+# Never stored or logged.
+USER_KEY: ContextVar[str | None] = ContextVar("user_ai_key", default=None)
+
+
+def key_provider(key: str) -> str:
+    """Which service a key belongs to, from its format: sk-ant-... is Anthropic, sk-... is OpenAI, else Gemini."""
+    if key.startswith("sk-ant-"):
+        return "anthropic"
+    if key.startswith("sk-"):
+        return "openai"
+    return "gemini"
+
+
+def key_for(p):
+    k = USER_KEY.get()
+    if k and key_provider(k) == p:
+        return k
+    return {"anthropic": ANTHROPIC_KEY, "gemini": GEMINI_KEY, "openai": OPENAI_KEY}.get(p)
 
 
 def gemini_key():
-    return USER_KEY.get() or GEMINI_KEY
+    return key_for("gemini")
 
 MODELS = {
     "anthropic": {"cheap": "claude-haiku-5-5", "strong": "claude-sonnet-5-5"},
     # Google retires model names for new keys; override with FINN_GEMINI_CHEAP / FINN_GEMINI_STRONG.
     "gemini": {"cheap": os.getenv("FINN_GEMINI_CHEAP", "gemini-3.5-flash-lite"),
                "strong": os.getenv("FINN_GEMINI_STRONG", "gemini-3.5-flash")},
+    "openai": {"cheap": os.getenv("FINN_OPENAI_CHEAP", "gpt-4.1-mini"), "strong": os.getenv("FINN_OPENAI_STRONG", "gpt-4.1")},
     "replay": {"cheap": "replay-cheap", "strong": "replay-strong"},
 }
 # USD per 1M tokens (input, output), for the cost log only.
@@ -40,6 +59,7 @@ PRICES = {
     "claude-haiku-5-5": (1.0, 5.0), "claude-sonnet-5-5": (3.0, 15.0),
     "gemini-2.5-flash-lite": (0.10, 0.40), "gemini-2.5-flash": (0.30, 2.50),
     # Estimates for the cost log; on the free tier the real spend is zero.
+    "gpt-4.1-mini": (0.40, 1.60), "gpt-4.1": (2.0, 8.0),
     "gemini-3.5-flash-lite": (0.10, 0.40), "gemini-3.5-flash": (0.30, 2.50), "gemini-3.8-flash": (0.30, 2.50),
 }
 
@@ -52,13 +72,15 @@ def provider():
     if pref == "replay":
         return "replay"
     if USER_KEY.get():
-        return "gemini"
+        return key_provider(USER_KEY.get())
     if pref == "gemini" and GEMINI_KEY:
         return "gemini"
     if ANTHROPIC_KEY:
         return "anthropic"
     if GEMINI_KEY:
         return "gemini"
+    if OPENAI_KEY:
+        return "openai"
     return None
 
 
@@ -69,7 +91,7 @@ def available() -> bool:
 def _anthropic(model, system, prompt, max_tokens):
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+        headers={"x-api-key": key_for("anthropic"), "anthropic-version": "2023-06-01", "content-type": "application/json"},
         json={"model": model, "max_tokens": max_tokens, "system": system,
               "messages": [{"role": "user", "content": prompt}]},
         timeout=45,
@@ -78,6 +100,23 @@ def _anthropic(model, system, prompt, max_tokens):
     j = r.json()
     text = "".join(b.get("text", "") for b in j["content"])
     return text, j["usage"]["input_tokens"], j["usage"]["output_tokens"]
+
+
+def _openai(model, system, prompt, max_tokens):
+    r = requests.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {key_for('openai')}", "content-type": "application/json"},
+        json={"model": model, "max_tokens": max_tokens, "temperature": 0.2,
+              "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]},
+        timeout=45,
+    )
+    r.raise_for_status()
+    j = r.json()
+    u = j.get("usage", {})
+    return j["choices"][0]["message"]["content"] or "", u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+
+
+CALLS = {}  # filled below, once every provider function exists
 
 
 def _gemini(model, system, prompt, max_tokens):
@@ -99,6 +138,8 @@ def _gemini(model, system, prompt, max_tokens):
     u = j.get("usageMetadata", {})
     return text, u.get("promptTokenCount", 0), u.get("candidatesTokenCount", 0)
 
+
+CALLS.update(anthropic=_anthropic, gemini=_gemini, openai=_openai)
 
 RETRYABLE = {429, 500, 503, 504}
 
@@ -125,19 +166,23 @@ def _with_retry(call, *args, attempts=3):
             time.sleep(2 * 2 ** i)  # 2s, 4s
 
 
+NAMES = {"anthropic": "Anthropic", "gemini": "Google", "openai": "OpenAI"}
+
+
 def check_key(key):
     """One tiny call with a visitor's key, so a typo is caught when it's saved rather than mid-research."""
     token = USER_KEY.set(key)
+    p = key_provider(key)
     try:
-        _gemini(MODELS["gemini"]["cheap"], "Be terse.", "Reply OK.", 5)
-        return {"ok": True}
+        CALLS[p](MODELS[p]["cheap"], "Be terse.", "Reply OK.", 16)
+        return {"ok": True, "provider": p}
     except requests.HTTPError as e:
         code = e.response.status_code if e.response is not None else 0
         if code == 429:
-            return {"ok": True, "note": "Key works, but its free limit is used up for now."}
-        return {"ok": False, "error": "Google rejected this key. Check it and try again."}
+            return {"ok": True, "provider": p, "note": "Key works, but its limit is used up for now."}
+        return {"ok": False, "error": f"{NAMES[p]} rejected this key. Check it and try again."}
     except requests.RequestException:
-        return {"ok": False, "error": "Couldn't reach Google to check the key. Try again."}
+        return {"ok": False, "error": f"Couldn't reach {NAMES[p]} to check the key. Try again."}
     finally:
         USER_KEY.reset(token)
 
@@ -160,7 +205,7 @@ def complete(prompt: str, tier="cheap", system="You are a precise financial anal
             return ans.read_text(encoding="utf-8")
         (REPLAY_DIR / f"{key[:16]}.prompt").write_text(f"[{tier}]\n{system}\n\n{prompt}", encoding="utf-8")
         return None
-    call = _anthropic if p == "anthropic" else _gemini
+    call = CALLS[p]
     try:
         text, tin, tout = _with_retry(call, model, system, prompt, max_tokens)
     except (requests.HTTPError, requests.Timeout, requests.ConnectionError) as e:

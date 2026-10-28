@@ -30,8 +30,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.middleware("http")
 async def visitor_key(request, call_next):
-    """A visitor may bring their own Gemini key; it applies to their requests only and is never stored."""
-    key = (request.headers.get("x-gemini-key") or "").strip()[:200] or None
+    """A visitor may bring their own AI key (Gemini, Claude or OpenAI); it applies to their requests only and is
+    never stored."""
+    key = (request.headers.get("x-ai-key") or "").strip()[:300] or None
     token = llm.USER_KEY.set(key)
     try:
         return await call_next(request)
@@ -100,7 +101,7 @@ def status():
 def key_check(body: dict = Body(...)):
     key = str(body.get("key") or "").strip()
     if len(key) < 20:
-        return {"ok": False, "error": "That doesn't look like a Gemini key."}
+        return {"ok": False, "error": "That doesn't look like an API key."}
     return llm.check_key(key)
 
 
