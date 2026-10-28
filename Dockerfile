@@ -11,6 +11,7 @@ WORKDIR /app
 COPY backend/requirements.txt backend/
 RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ backend/
+COPY seed/ seed/
 COPY --from=web /web/dist frontend/dist
 ENV PORT=8000
 CMD ["sh", "-c", "uvicorn app:app --app-dir backend --host 0.0.0.0 --port ${PORT}"]
