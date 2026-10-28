@@ -51,7 +51,7 @@ cd .. && python -m uvicorn app:app --app-dir backend --port 8000
 
 Open http://localhost:8000. To try it on a phone on the same Wi-Fi, add `--host 0.0.0.0` and open `http://<laptop-ip>:8000`. For frontend development, `npm run dev` in `frontend/` proxies `/api` to :8000.
 
-Tests: `cd backend && python -m pytest -q` (30 tests).
+Tests: `cd backend && python -m pytest -q` (34 tests).
 
 ## Environment variables
 
@@ -81,7 +81,7 @@ Tests: `cd backend && python -m pytest -q` (30 tests).
 ## Layout
 ```
 backend/
-  app.py                 FastAPI: brief, cards, research jobs, holdings, health, admin refresh, static PWA
+  app.py                 FastAPI: brief, cards, research jobs, ask-the-documents, holdings, health, admin refresh, static PWA
   ingest.py              refresh pipeline (prices → filings → classify → size check → enrich → notify)
   finn/llm.py            two-tier router, retries/fallback, cache, cost log
   finn/brief.py          window rules, grouping, fallback headlines, why-it's-here

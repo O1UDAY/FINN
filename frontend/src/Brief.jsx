@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, local } from "./api";
 import Card from "./Card";
+import Listen from "./Listen";
 import Masthead from "./Masthead";
 import { ago, cat } from "./ui";
 
@@ -14,6 +15,7 @@ export default function Brief({ onAsk }) {
   const [err, setErr] = useState(null);
   const [done, setDone] = useState(() => new Set(local.get("done", [])));
   const [showRoutine, setShowRoutine] = useState(false);
+  const [speaking, setSpeaking] = useState(null);
   // Telegram alerts link to /?story=<id>: open that story once the brief has loaded.
   const [focusId] = useState(() => new URLSearchParams(window.location.search).get("story"));
 
@@ -48,11 +50,13 @@ export default function Brief({ onAsk }) {
         {WINDOWS.map((w) => <button key={w.h} className={hours === w.h ? "on" : ""} onClick={() => setHours(w.h)}>{w.label}</button>)}
       </nav>
 
+      {open.length > 0 && <Listen cards={open} onCurrent={setSpeaking} onDone={clear} />}
+
       {err && <p className="note warn">The brief didn't load ({err}). Pull down or switch window to try again.</p>}
       {!data && !err && <div className="loading">Collecting filings</div>}
 
       <ul className="story-list">
-        {open.map((c, i) => <Card key={c.id} item={c} lead={i === 0} focus={c.id === focusId} onDone={clear} onAsk={onAsk} />)}
+        {open.map((c, i) => <Card key={c.id} item={c} lead={i === 0} focus={c.id === focusId} speaking={c.id === speaking} onDone={clear} onAsk={onAsk} />)}
       </ul>
 
       {data && total > 0 && open.length === 0 && (

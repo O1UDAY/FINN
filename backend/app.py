@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from finn import llm, notify
+from finn.ask import ask
 from finn.brief import build_brief, find_announcement, get_settings, put_settings
 from finn.db import connect, get_meta
 from finn.enrich import enrich
@@ -165,6 +166,20 @@ def test_alert():
 def research_numbers(symbol: str):
     try:
         return numbers(symbol)
+    except SourceBusy as e:
+        raise HTTPException(503, str(e))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/ask/{symbol}")
+def ask_docs(symbol: str, body: dict = Body(...)):
+    """A question answered only from the company's filings, with verified page citations."""
+    q = str(body.get("question") or "").strip()
+    if len(q) < 3:
+        raise HTTPException(422, "Ask a question.")
+    try:
+        return ask(symbol, q, body.get("aid"))
     except SourceBusy as e:
         raise HTTPException(503, str(e))
     except LookupError as e:

@@ -4,6 +4,7 @@
 
 **Key decisions.**
 - *A paper you finish, not a chat.* An investor's morning is triage, so the core interaction is clearing a short list. Research is one tap from any story.
+- *Three ways into the same paper.* Read it, **listen to it** (the Brief read aloud in order for the commute, with pause, next and "done, next"; the phone's own voice, so nothing is sent anywhere), or **question it**. Questions are a constrained copilot, not a chatbot: answered only from that filing or the company's last four calls and two presentations, every answer quoting the page it rests on, each quote checked verbatim in code, and "Not in the documents" when they don't say.
 - *Numbers in code, judgement in the model.* EBITDA, growth, margins, lease adjustments and every signal are computed deterministically. The model copies line items and judges; it never does arithmetic, and it is told which metrics are unreliable.
 - *A cost funnel.* Rules → regex pre-filter → cheap extraction → one strong judging call → cache.
 - *Degrade, don't die.* No key: rules-only. NSE blocked: BSE. Both empty: a committed snapshot, labelled as such. Model busy: retry, then the cheap model.
@@ -32,7 +33,8 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 | Readers couldn't see the method's limits | "Limits and method" box on every research page: data source, lease proxy, what code computes and what the model judges, this run's KPI agreement | Shown on all research pages |
 | A strong-model fallback was cached as the strong answer, so later runs never retried | Fallback answers cached under the cheap model's key | Found while re-running Jubilant |
 | Alerts were only checked every 6 hours | Filings and the alerts on them checked every 15 minutes; prices (end-of-day) fetched once after the 16:00 IST close; the 30-day sweep stays 6-hourly | A filings check takes 42s and found 4 new filings the last full run hadn't. Alert lag: up to 6h → up to 15 min while the server is awake |
-| No tests | pytest suite | 30 tests pass |
+| One way to interact | Listen to the Brief; ask any story or research page a question, answered only from primary documents with verified quotes | Jubilant "margins?" → "EBITDA margins improved by 110 basis points year-on-year to 20.5%", Feb 2026 call p. 5. DMart commercial-paper filing "amount?" → "Rs 500 crores", p. 1. "CEO's favourite colour?" → "Not in the documents searched." ~12–20s per question on the cheap model; none use the strong model's daily cap |
+| No tests | pytest suite | 34 tests pass |
 
 **Cost.** Measured over the whole build: $0.106 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.
 
@@ -49,4 +51,4 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 - Track the promise ledger across years, not just four quarters.
 - Read annual-report notes for related-party and contingent-liability changes.
 - Scale materiality to other categories, such as orders as a share of revenue.
-- A voice version of the Brief for the commute.
+- Voice commands ("next", "open it") on top of the read-aloud Brief.

@@ -1,0 +1,35 @@
+from finn import ask as A
+
+PAGES = ["Board meeting outcome. The Company has allotted commercial paper of Rs 500 crores with a tenure of 90 days. "
+         "The coupon is 6.12% and the paper is rated ICRA A1+ by the agency."]
+
+
+def _setup(monkeypatch, answer):
+    monkeypatch.setattr(A, "_docs", lambda symbol, aid: [{"label": "this filing", "url": "u"}])
+    monkeypatch.setattr(A, "pages", lambda url: PAGES)
+    monkeypatch.setattr(A.llm, "available", lambda: True)
+    monkeypatch.setattr(A.llm, "complete_json", lambda *a, **k: answer)
+
+
+def test_synonyms_widen_plain_words():
+    t = A._terms("What amount is involved?")
+    assert "amount" in t and "crore" in t and "is" not in t
+
+
+def test_answer_kept_only_with_a_verbatim_quote(monkeypatch):
+    _setup(monkeypatch, {"found": True, "answer": "Rs 500 crores.", "cites": [{"doc": 1, "page": 1, "quote": "commercial paper of Rs 500 crores"}]})
+    r = A.ask("DMART", "What amount is involved?", "a1")
+    assert r["found"] and r["cites"][0]["page"] == 1
+
+
+def test_invented_quote_is_rejected(monkeypatch):
+    _setup(monkeypatch, {"found": True, "answer": "Rs 900 crores.", "cites": [{"doc": 1, "page": 1, "quote": "a loan of Rs 900 crores from the bank"}]})
+    r = A.ask("DMART", "What amount is involved?", "a1")
+    assert not r["found"] and not r["cites"]
+
+
+def test_unreadable_documents_say_so(monkeypatch):
+    _setup(monkeypatch, None)
+    monkeypatch.setattr(A, "pages", lambda url: [])
+    r = A.ask("HDFCBANK", "What is this about?", "a1")
+    assert not r["found"] and "Couldn't read" in r["answer"]

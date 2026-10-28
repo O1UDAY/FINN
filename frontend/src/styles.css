@@ -341,3 +341,27 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 .limits h3 { font: 600 13px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px; }
 .limits ul { margin: 0; padding-left: 18px; }
 .limits li, .limits p { font: 14px/1.45 var(--sans); color: var(--ink-3); margin: 0 0 6px; }
+
+/* Listen: the Brief read aloud */
+.listen { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 10px 0 2px; padding: 0; color: var(--oxford); font-weight: 600; font-size: 15px; text-align: left; }
+.listen span { font-weight: 400; color: var(--ink-3); font-size: 13px; }
+.listen.on { gap: 18px; flex-wrap: wrap; border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+.listen.on button { min-height: 44px; color: var(--oxford); font-weight: 600; font-size: 14px; }
+.listen .pos { font-variant-numeric: tabular-nums; color: var(--ink); font-size: 13px; }
+.story.speaking { box-shadow: inset 3px 0 0 var(--claret); padding-left: 12px; }
+
+/* Ask the documents */
+.ask h3 { font: 600 13px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px; }
+.ask form { display: flex; gap: 8px; border-bottom: 2px solid var(--rule-strong); }
+.ask input { flex: 1; min-width: 0; background: none; border: 0; outline: none; padding: 10px 0; font-size: 16px; color: var(--ink); }
+.ask input::placeholder { color: var(--ink-3); }
+.ask form button { min-height: 44px; min-width: 44px; color: var(--oxford); font-weight: 600; }
+.ask-qs { display: flex; flex-wrap: wrap; gap: 0 16px; margin-top: 4px; }
+.ask-qs button { min-height: 44px; color: var(--oxford); font-size: 14px; text-align: left; }
+.ask button:disabled { color: var(--ink-3); }
+.ask-ans { margin-top: 10px; }
+.ask-ans .prose { font-size: 16px; }
+.ask-ans blockquote { margin: 8px 0 0; padding-left: 10px; border-left: 2px solid var(--rule-strong); font: italic 15px/1.45 var(--serif); color: var(--ink-2); }
+.ask-ans cite { display: block; font: normal 13px/1.4 var(--sans); margin-top: 2px; }
+.ask-ans cite a { color: var(--oxford); }
+.story .body .ask { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--rule); }

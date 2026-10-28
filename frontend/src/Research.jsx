@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, local } from "./api";
+import Ask from "./Ask";
 import Masthead from "./Masthead";
 import { Bars, crore, fmt, IconDot, IconDown, IconSearch, IconUp, PairBars } from "./ui";
 
@@ -60,6 +61,7 @@ export default function Research({ symbol, setSymbol }) {
       {symbol && !num && !err && <div className="loading">Pulling {symbol}'s financials</div>}
       {num && <Header n={num} />}
       {num && <Analysis a={ana} />}
+      {num && <section className="sec"><Ask symbol={num.symbol} /></section>}
       {num && <Charts n={num} />}
       {num && <Sources n={num} a={ana} />}
     </>

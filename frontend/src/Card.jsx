@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import Ask from "./Ask";
 import { ago, cat, Delta, fmt, IconCheck, Spark } from "./ui";
 
 /** One story in the Brief. Tap to read it; swipe right, or press Done, to file it away. */
-export default function Card({ item, lead, focus, onDone, onAsk }) {
+export default function Card({ item, lead, focus, speaking, onDone, onAsk }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [err, setErr] = useState(null);
@@ -11,6 +12,9 @@ export default function Card({ item, lead, focus, onDone, onAsk }) {
   const [dragging, setDragging] = useState(false);
   const drag = useRef(null);
   const el = useRef(null);
+  useEffect(() => {
+    if (speaking) el.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [speaking]);
   useEffect(() => {
     if (!focus) return;
     if (!open) toggle();
@@ -47,7 +51,7 @@ export default function Card({ item, lead, focus, onDone, onAsk }) {
     <li className="swipe" ref={el}>
       <div className="under" aria-hidden><IconCheck /> Done</div>
       <article
-        className={"story" + (lead ? " lead" : "") + (dragging ? " dragging" : "")}
+        className={"story" + (lead ? " lead" : "") + (speaking ? " speaking" : "") + (dragging ? " dragging" : "")}
         style={{ transform: `translateX(${dx}px)` }}
         onPointerDown={down} onPointerMove={move} onPointerUp={up}
         onPointerCancel={() => { drag.current = null; setDragging(false); setDx(0); }}
@@ -72,6 +76,7 @@ export default function Card({ item, lead, focus, onDone, onAsk }) {
             {detail?.type === "results" && <Results d={detail} />}
             {detail?.type === "management" && <People d={detail} />}
             {detail?.type === "summary" && detail.text !== hed && <p className="prose" style={{ fontSize: 16 }}>{detail.text}</p>}
+            {item.url && <Ask symbol={item.symbol} aid={item.id} />}
             <div className="actions">
               {item.url && <a href={item.url} target="_blank" rel="noreferrer">Read filing</a>}
               <button onClick={() => onAsk(item.symbol)}>Research {item.symbol}</button>
