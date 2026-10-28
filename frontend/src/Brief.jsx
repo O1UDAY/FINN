@@ -5,12 +5,20 @@ import Listen from "./Listen";
 import Masthead from "./Masthead";
 import { ago, cat } from "./ui";
 
-const WINDOWS = [
-  { h: 24, label: "Since yesterday" }, { h: 72, label: "3 days" }, { h: 168, label: "This week" }, { h: 720, label: "This month" },
-];
+// Short labels so five fit one row on a phone.
+const WINDOWS = [{ h: 24, label: "1 day" }, { h: 72, label: "3 days" }, { h: 168, label: "Week" }, { h: 720, label: "Month" }];
+const MAX_DAYS = 30; // the server keeps a month of filings
+
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// Hours from the start of the chosen day until now, so "since 20 Oct" includes all of 20 Oct.
+const hoursSince = (day) => Math.max(1, Math.min(MAX_DAYS * 24, Math.ceil((Date.now() - new Date(day + "T00:00").getTime()) / 3.6e6)));
 
 export default function Brief({ onAsk }) {
-  const [hours, setHours] = useState(local.get("hours", 24));
+  const [since, setSince] = useState(local.get("since", null)); // custom window: a start date, or null
+  // A saved custom window is re-measured from its date, so "since 20 Oct" still means that the next day.
+  const [hours, setHours] = useState(() => (since ? hoursSince(since) : local.get("hours", 24)));
+  const [picking, setPicking] = useState(false);
+  const custom = since != null;
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [done, setDone] = useState(() => new Set(local.get("done", [])));
@@ -20,9 +28,14 @@ export default function Brief({ onAsk }) {
   const [focusId] = useState(() => new URLSearchParams(window.location.search).get("story"));
 
   useEffect(() => {
-    setData(null); setErr(null); local.set("hours", hours);
+    setData(null); setErr(null); local.set("hours", hours); local.set("since", since);
     api.brief(hours).then(setData).catch((e) => setErr(e.message));
-  }, [hours]);
+  }, [hours, since]);
+
+  const pick = (h) => { setSince(null); setPicking(false); setHours(h); };
+  const pickSince = (day) => { if (!day) return; setSince(day); setHours(hoursSince(day)); };
+  const today = new Date();
+  const minDay = iso(new Date(today.getTime() - (MAX_DAYS - 1) * 864e5));
 
   const clear = (id) => setDone((s) => { const n = new Set(s).add(id); local.set("done", [...n].slice(-500)); return n; });
   const restore = () => { setDone(new Set()); local.set("done", []); };
@@ -47,8 +60,21 @@ export default function Brief({ onAsk }) {
       </p>
 
       <nav className="sections" aria-label="Time window">
-        {WINDOWS.map((w) => <button key={w.h} className={hours === w.h ? "on" : ""} onClick={() => setHours(w.h)}>{w.label}</button>)}
+        {WINDOWS.map((w) => <button key={w.h} className={!custom && hours === w.h ? "on" : ""} onClick={() => pick(w.h)}>{w.label}</button>)}
+        <button className={custom ? "on" : ""} aria-expanded={picking} onClick={() => setPicking((p) => !p)}>Custom</button>
       </nav>
+      {(picking || custom) && (
+        <div className="custom-window">
+          <label>
+            Since
+            <input type="date" value={since || ""} min={minDay} max={iso(today)} onChange={(e) => pickSince(e.target.value)} />
+          </label>
+          <span className="note">
+            {custom ? `${new Date(since + "T00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })} to now` : `Up to ${MAX_DAYS} days back`}
+          </span>
+          {custom && <button className="link-btn" onClick={() => pick(24)}>Clear</button>}
+        </div>
+      )}
 
       {open.length > 0 && <Listen cards={open} onCurrent={setSpeaking} onDone={clear} />}
 

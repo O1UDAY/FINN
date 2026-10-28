@@ -365,3 +365,10 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 .ask-ans cite { display: block; font: normal 13px/1.4 var(--sans); margin-top: 2px; }
 .ask-ans cite a { color: var(--oxford); }
 .story .body .ask { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--rule); }
+
+/* Custom time window */
+.custom-window { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 0 6px; font-size: 14px; }
+.custom-window label { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.custom-window input { min-height: 44px; background: var(--paper-2); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 0 10px; color-scheme: inherit; }
+.custom-window .note { margin: 0; }
+.custom-window .link-btn { min-height: 44px; margin-left: auto; }
