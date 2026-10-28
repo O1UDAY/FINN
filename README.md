@@ -13,7 +13,7 @@ A mobile-first investor agent built for the ENAM Holdings AI Engineer Build Chal
 ## Architecture
 
 ```
-                 ┌──────────── ingest.py (thread every 6h · CLI · POST /api/admin/refresh) ─────────────┐
+                 ┌──────────── ingest.py (filings every 15 min, prices after close · CLI · POST /api/admin/refresh) ─────────────┐
 yfinance .NS/.BO ┤ prices                                                                                │
 NSE API ─retry──►├ announcements ──(NSE gave nothing?)──► BSE API ──(both empty?)──► seed snapshot       │
 screener.in ─────┤ tables, documents, line-item schedules (429/403 → "source busy", never "not found")   │
@@ -62,7 +62,7 @@ Tests: `cd backend && python -m pytest -q` (30 tests).
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Optional push alerts after each refresh. Unset = silently off. |
 | `FINN_PUBLIC_URL` | Base URL used in alert deep links (`/?story=<id>`). |
 | `FINN_ADMIN_TOKEN` | Enables `POST /api/admin/refresh` (header `X-Admin-Token`). |
-| `FINN_AUTO_REFRESH`, `FINN_REFRESH_SECONDS` | In-process refresh thread (default on, every 6h). |
+| `FINN_AUTO_REFRESH`, `FINN_FILINGS_SECONDS`, `FINN_REFRESH_SECONDS` | In-process refresh thread (default on): filings and alerts every 15 min, full refresh every 6h and once after the 16:00 IST close. |
 | `TAVILY_API_KEY` | Optional web lookup for executive bios. **Optional, untested**: no key was available; bios come from the filing's own profile annexure. |
 | `VITE_EXTRA_APPEARANCE=1` (build time) | Shows the extra papers, accents and text sizes. Off by default. |
 
@@ -72,7 +72,7 @@ Tests: `cd backend && python -m pytest -q` (30 tests).
 - **Announcement sources.** NSE with retries, falling back to BSE (scrip codes in `finn/config.py`). The source used is in `/api/health`.
 - **Warm-up.** `python scripts/warmup.py [TICKERS...]` enriches every story in every window and pre-computes research for the portfolio and research list, so a cold visitor never waits. Cached items are skipped.
 - **Health.** `GET /api/health`: table row counts, last refresh, data source (live NSE / BSE / snapshot), recent fetch errors.
-- **External cron.** `python -m backend.ingest --refresh` from the repo root, or `POST /api/admin/refresh` with `X-Admin-Token`. Refreshes are lock-guarded and idempotent; alerts are never re-sent (`notified_alerts`).
+- **External cron.** `python -m backend.ingest --refresh` from the repo root, or `POST /api/admin/refresh` with `X-Admin-Token` (every 15 min also keeps a free Render instance awake, so alerts aren't missed while it sleeps). Refreshes are lock-guarded and idempotent; alerts are never re-sent (`notified_alerts`).
 
 ## Testing the model paths without a key (replay mode)
 

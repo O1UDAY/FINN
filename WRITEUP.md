@@ -31,6 +31,7 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 | Story-vs-numbers and the case for/against were uncited prose | Numbered, code-computed facts passed to the judge; every point must cite a fact or promise id, resolved in code; uncited points are labelled "Opinion"; quarterly trend labelled in code, with low-base quarters and lender margins excluded | Jubilant: bull/bear 0 of 6 cited → 6 of 6 cited; story claims 3 of 3 cite a fact (strong-model run). Trend: "Revenue YoY slowing: +13.7% vs +17.3% avg of prior 3 quarters" |
 | Readers couldn't see the method's limits | "Limits and method" box on every research page: data source, lease proxy, what code computes and what the model judges, this run's KPI agreement | Shown on all research pages |
 | A strong-model fallback was cached as the strong answer, so later runs never retried | Fallback answers cached under the cheap model's key | Found while re-running Jubilant |
+| Alerts were only checked every 6 hours | Filings and the alerts on them checked every 15 minutes; prices (end-of-day) fetched once after the 16:00 IST close; the 30-day sweep stays 6-hourly | A filings check takes 42s and found 4 new filings the last full run hadn't. Alert lag: up to 6h → up to 15 min while the server is awake |
 | No tests | pytest suite | 30 tests pass |
 
 **Cost.** Measured over the whole build: $0.106 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.

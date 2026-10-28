@@ -3,6 +3,7 @@ import os
 import threading
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from finn import env  # noqa: F401  (loads .env before anything reads keys)
@@ -27,13 +28,33 @@ _state = {"refreshing": False, "last_refresh": None, "last_error": None}
 _refresh_lock = threading.Lock()
 
 
-def _refresh():
+IST = timezone(timedelta(hours=5, minutes=30))
+FULL_EVERY = int(os.getenv("FINN_REFRESH_SECONDS", 6 * 3600))
+FILINGS_EVERY = int(os.getenv("FINN_FILINGS_SECONDS", 15 * 60))
+PRICES_AFTER = 16  # IST hour: NSE closes 15:30, Yahoo's end-of-day bar is settled by 16:00
+_last = {"full": 0.0, "prices_day": None}
+
+
+def _refresh(full=None):
+    """One refresh. Filings (and the alerts on them) every FILINGS_EVERY; prices, the 30-day sweep and enrichment
+    of the whole month on a full run: every FULL_EVERY, and once each day after the market closes."""
     if not _refresh_lock.acquire(blocking=False):  # idempotent: a second trigger during a run is a no-op
         return False
     _state["refreshing"] = True
     try:
-        run_ingest(days=30, docs=False)
+        now = datetime.now(IST)
+        new_close = now.hour >= PRICES_AFTER and _last["prices_day"] != now.date()
+        if full is None:
+            full = new_close or time.time() - _last["full"] >= FULL_EVERY
+        if full:
+            run_ingest(days=30, docs=False)
+            _last["full"] = time.time()
+            if now.hour >= PRICES_AFTER:
+                _last["prices_day"] = now.date()
+        else:
+            run_ingest(days=2, docs=False, prices=False)
         _state["last_refresh"], _state["last_error"] = time.strftime("%Y-%m-%dT%H:%M:%S"), None
+        _state["last_kind"] = "full" if full else "filings"
     except Exception as e:
         _state["last_error"] = str(e)
     finally:
@@ -45,7 +66,7 @@ def _refresh():
 def _scheduler():
     while True:
         _refresh()
-        time.sleep(int(os.getenv("FINN_REFRESH_SECONDS", 6 * 3600)))
+        time.sleep(min(FILINGS_EVERY, FULL_EVERY))
 
 
 @app.on_event("startup")
@@ -73,7 +94,7 @@ def health():
 
 @app.post("/api/refresh")
 def refresh():
-    threading.Thread(target=_refresh, daemon=True).start()
+    threading.Thread(target=_refresh, kwargs={"full": True}, daemon=True).start()
     return {"started": not _state["refreshing"]}
 
 

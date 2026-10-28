@@ -21,14 +21,15 @@ from finn.ingest.prices import detect_moves, fetch_prices  # noqa: E402
 from finn.screener import save_documents  # noqa: E402
 
 
-def run(days=30, docs=False, notify=True):
+def run(days=30, docs=False, notify=True, prices=True):
     conn = connect()
     s = get_settings(conn)
     pf = s["portfolio"]
     if conn.execute("SELECT COUNT(*) FROM announcements").fetchone()[0] == 0:
         from finn.snapshot import load
         load("empty database")  # show something real at once; the live fetch below tops it up
-    print("prices:", fetch_prices(conn, pf), "rows")
+    if prices:  # end-of-day data: once a day is enough; filings are checked far more often
+        print("prices:", fetch_prices(conn, pf), "rows")
     n = fetch_announcements(conn, pf, days=days)
     print("announcements:", n)
     if n == 0:
