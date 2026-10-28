@@ -18,7 +18,7 @@ export const api = {
   numbers: (sym) => req(`/api/research/${encodeURIComponent(sym)}`),
   analysis: (sym, refresh) => req(`/api/research/${encodeURIComponent(sym)}/analysis${refresh ? "?refresh=true" : ""}`),
   startResearch: (sym, refresh) => req(`/api/research/${encodeURIComponent(sym)}${refresh ? "?refresh=true" : ""}`, { method: "POST" }),
-  ask: (sym, question, aid) => req(`/api/ask/${encodeURIComponent(sym)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, aid }) }),
+  ask: (sym, question, aid, history) => req(`/api/ask/${encodeURIComponent(sym)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, aid, history }) }),
   job: (id) => req(`/api/research/jobs/${id}`),
   addHolding: (symbol) => req("/api/holdings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol }) }),
   testAlert: () => req("/api/alerts/test", { method: "POST" }),

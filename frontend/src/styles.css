@@ -378,3 +378,14 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 .own-key h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
 .own-key h3 span { font-weight: 400; font-size: 13px; color: var(--ink-3); margin-left: 6px; }
 .own-key .row { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+
+/* Ask as a conversation */
+.ask-head { display: flex; justify-content: space-between; align-items: center; min-height: 32px; }
+.ask-head h3 { margin: 0; }
+.ask-head .link-btn { font-size: 13px; min-height: 44px; }
+.turn { margin: 8px 0 14px; }
+.turn .you { margin: 0 0 6px auto; max-width: 85%; width: fit-content; background: var(--paper-2); color: var(--ink); padding: 8px 12px; border-radius: 14px 14px 4px 14px; font-size: 15px; line-height: 1.35; }
+.turn .ask-ans { margin-top: 4px; }
+.ask-typed { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-top: 0; border-radius: 0 0 10px 10px; background: var(--paper-2); }
+.ask-typed li + li { border-top: 1px solid var(--rule); }
+.ask-typed button { display: block; width: 100%; text-align: left; min-height: 44px; padding: 0 12px; color: var(--ink); font-size: 15px; }

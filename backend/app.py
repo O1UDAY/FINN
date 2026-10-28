@@ -203,7 +203,7 @@ def ask_docs(symbol: str, body: dict = Body(...)):
     if len(q) < 3:
         raise HTTPException(422, "Ask a question.")
     try:
-        return ask(symbol, q, body.get("aid"))
+        return ask(symbol, q, body.get("aid"), body.get("history"))
     except SourceBusy as e:
         raise HTTPException(503, str(e))
     except LookupError as e:

@@ -68,3 +68,16 @@ def test_model_failure_is_not_reported_as_no_answer(monkeypatch):
     _setup(monkeypatch, None)
     r = A.ask("DMART", "What amount is involved?", "a1")
     assert not r["found"] and "couldn't answer" in r["answer"]
+
+
+def test_model_style_references_are_read(monkeypatch):
+    _setup(monkeypatch, {"found": True, "answer": "Rs 500 crores.", "cites": [{"doc": "D1", "page": "p1", "quote": "commercial paper of Rs 500 crores"}]})
+    assert A.ask("DMART", "What amount is involved?", "a1")["found"]
+
+
+def test_follow_up_uses_the_previous_subject(monkeypatch):
+    seen = {}
+    _setup(monkeypatch, None)
+    monkeypatch.setattr(A.llm, "complete_json", lambda p, **k: seen.setdefault("p", p) and None)
+    A.ask("DMART", "and last year?", "a1", history=[{"q": "What was the coupon?", "a": "6.12%"}])
+    assert "Q: What was the coupon?" in seen["p"] and "New question about DMART: and last year?" in seen["p"]

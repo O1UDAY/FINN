@@ -51,7 +51,7 @@ cd .. && python -m uvicorn app:app --app-dir backend --port 8000
 
 Open http://localhost:8000. To try it on a phone on the same Wi-Fi, add `--host 0.0.0.0` and open `http://<laptop-ip>:8000`. For frontend development, `npm run dev` in `frontend/` proxies `/api` to :8000.
 
-Tests: `cd backend && python -m pytest -q` (38 tests).
+Tests: `cd backend && python -m pytest -q` (40 tests).
 
 ## Environment variables
 
