@@ -46,7 +46,7 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 - Reading annual reports in full. They're linked; the effort went into transcripts and presentations, where guidance and KPIs live.
 - Web push and accounts. Telegram covers "reach out" without a login system.
 - Tavily-based executive bios. The code path exists but is untested; bios come from exchange filings only (the filing, the one it references, then the company's other recent filings).
-- Extra visual themes. They're built, but hidden behind a flag; the product ships one considered look plus dark mode.
+- Extra visual themes. They're built, but hidden behind a flag; the product ships one look: dark, after Apple's Stocks app (system font, iOS greys, green and red figure pills), because a portfolio app is read in short glances, often early or late.
 
 ## Next
 - Track the promise ledger across years, not just four quarters.

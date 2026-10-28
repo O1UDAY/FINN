@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#fff1e5" />
+    <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -16,7 +16,8 @@
       try {
         var p = JSON.parse(localStorage.getItem("finn:appearance") || "{}"), r = document.documentElement;
         var m = p.mode && p.mode !== "system" ? p.mode : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        r.dataset.mode = m; // paper, accent and size are applied by theme.js, which knows the feature flag
+        if (!p.paper || p.paper === "stocks") { m = "dark"; r.dataset.paper = "stocks"; } // the default look is always dark
+        r.dataset.mode = m; // accent and size are applied by theme.js, which knows the feature flag
       } catch (e) {}
     </script>
   </head>

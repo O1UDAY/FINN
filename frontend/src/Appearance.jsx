@@ -15,6 +15,8 @@ const SIZES = [["s", "Small"], ["m", "Default"], ["l", "Large"]];
 export default function Appearance() {
   const { prefs, save } = useAppearance(useState, useEffect);
   // Previews show what each paper will look like when picked, i.e. in the saved theme, not the forced one.
+  // The default look is dark-only and the other papers are behind the flag: there is nothing to choose.
+  if (!EXTRA_APPEARANCE && DARK_ONLY.has(prefs.paper)) return null;
   const previewMode = prefs.mode === "dark" || (prefs.mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
   return (
     <section className="sec">

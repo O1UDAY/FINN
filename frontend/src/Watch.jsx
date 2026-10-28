@@ -39,7 +39,7 @@ export default function Watch() {
     <>
       <Masthead>{saved ? "Saved" : "Settings"}</Masthead>
       <h1 className="page-title">Settings</h1>
-      <p className="standfirst">How FINN looks, what counts as unusual, and which companies it watches.</p>
+      <p className="standfirst">What counts as unusual, and which companies FINN watches.</p>
 
       <Appearance />
 

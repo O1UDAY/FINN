@@ -2,14 +2,14 @@
 // before first paint; this module keeps them in sync afterwards).
 import { local } from "./api";
 
-export const DEFAULTS = { mode: "system", paper: "salmon", accent: "claret", size: "m" };
+export const DEFAULTS = { mode: "system", paper: "stocks", accent: "claret", size: "m" };
 export const ZOOM = { s: 0.92, m: 1, l: 1.12 };
 // Papers that only exist in one mode (Stocks follows Apple's app, which is dark only).
 export const DARK_ONLY = new Set(["stocks"]);
 const media = window.matchMedia("(prefers-color-scheme: dark)");
 
 // Extra papers, accents and text sizes are off by default (build with VITE_EXTRA_APPEARANCE=1 to show them):
-// the product ships one considered look plus dark mode.
+// the product ships one considered look: Stocks, after Apple's Stocks app (always dark).
 export const EXTRA_APPEARANCE = import.meta.env.VITE_EXTRA_APPEARANCE === "1";
 
 export const getPrefs = () => {
