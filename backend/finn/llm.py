@@ -94,6 +94,12 @@ def _gemini(model, system, prompt, max_tokens):
 RETRYABLE = {429, 500, 503, 504}
 
 
+def _daily_quota(e):
+    """Free-tier daily request caps (e.g. 20 a day for the strong model) don't clear in seconds; retrying only burns more."""
+    r = getattr(e, "response", None)
+    return r is not None and r.status_code == 429 and "PerDay" in r.text
+
+
 def _retryable(e):
     if isinstance(e, (requests.Timeout, requests.ConnectionError)):
         return True
@@ -105,7 +111,7 @@ def _with_retry(call, *args, attempts=3):
         try:
             return call(*args)
         except (requests.HTTPError, requests.Timeout, requests.ConnectionError) as e:
-            if not _retryable(e) or i == attempts - 1:
+            if not _retryable(e) or _daily_quota(e) or i == attempts - 1:
                 raise
             time.sleep(2 * 2 ** i)  # 2s, 4s
 

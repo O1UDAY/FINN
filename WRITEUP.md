@@ -35,7 +35,7 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 
 **Cost.** Measured over the whole build: $0.106 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.
 
-**Caveat on the Jubilant output above.** The latest Jubilant analysis was judged by the cheap model: the strong model's free tier refuses a request this long (HTTP 429, quota) even when short requests succeed, and FINN falls back as designed. Every case point still cites a computed fact or promise. A strong-model run needs a paid or higher-quota key.
+**Caveat on the Jubilant output above.** The latest Jubilant analysis was judged by the cheap model: Gemini's free tier allows 20 strong-model requests a day, and the build used them up, so FINN fell back as designed. Every case point still cites a computed fact or promise. Research needs one strong request per new company, so the free cap covers about 20 new companies a day; FINN no longer retries once the daily cap is hit, so retries don't eat into it.
 
 ## Deliberately left out
 - Intraday data. The brief asks for end of day, and intraday data would add cost without adding judgement.
