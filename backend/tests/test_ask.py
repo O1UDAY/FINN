@@ -33,3 +33,9 @@ def test_unreadable_documents_say_so(monkeypatch):
     monkeypatch.setattr(A, "pages", lambda url: [])
     r = A.ask("HDFCBANK", "What is this about?", "a1")
     assert not r["found"] and "Couldn't read" in r["answer"]
+
+
+def test_cut_off_pdf_is_not_complete():
+    from finn.pdftext import _complete
+    assert _complete(b"%PDF-1.7 ... trailer\n%%EOF\n")
+    assert not _complete(b"%PDF-1.7 ... 5 0 R/Resources 216 0 R/Rotate")

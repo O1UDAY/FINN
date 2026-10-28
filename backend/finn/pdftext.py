@@ -26,19 +26,30 @@ def _get(url):
     return requests.get(url, headers=headers, timeout=60)
 
 
+def _complete(data: bytes) -> bool:
+    """A PDF ends with %%EOF. Exchange servers sometimes drop the connection mid-file; a cut-off copy opens as 0 pages."""
+    return data.startswith(b"%PDF") and b"%%EOF" in data[-2048:]
+
+
 def fetch_pdf(url: str) -> bytes | None:
     PDF_DIR.mkdir(parents=True, exist_ok=True)
     path = PDF_DIR / (hashlib.sha1(url.encode()).hexdigest() + ".pdf")
     if path.exists():
-        return path.read_bytes()
-    try:
-        r = _get(url)
-    except requests.RequestException:
-        return None
-    if not r.ok or not r.content.startswith(b"%PDF"):
-        return None
-    path.write_bytes(r.content)
-    return r.content
+        data = path.read_bytes()
+        if _complete(data):
+            return data
+        path.unlink()  # saved before this check existed: fetch it again
+    for _ in range(2):
+        try:
+            r = _get(url)
+        except requests.RequestException:
+            continue
+        if not r.ok or not r.content.startswith(b"%PDF"):
+            return None
+        if _complete(r.content):
+            path.write_bytes(r.content)
+            return r.content
+    return None  # never cache a partial download
 
 
 def pages(url: str) -> list[str]:
