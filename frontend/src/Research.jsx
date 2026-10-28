@@ -13,13 +13,17 @@ export default function Research({ symbol, setSymbol }) {
   const [num, setNum] = useState(null);
   const [ana, setAna] = useState(null);
   const [err, setErr] = useState(null);
-  const recent = local.get("recent", []);
+  const [recent, setRecent] = useState(() => local.get("recent", []).slice(0, 5));
 
   useEffect(() => {
     if (!symbol) return;
     setQ(symbol); setNum(null); setAna(null); setErr(null);
-    local.set("recent", [symbol, ...recent.filter((s) => s !== symbol)].slice(0, 6));
-    api.numbers(symbol).then(setNum).catch((e) => setErr(e.message));
+    api.numbers(symbol).then((n) => {
+      setNum(n);
+      // Only companies that were actually found go into recent searches (not typos like "AAPL").
+      const next = [symbol, ...local.get("recent", []).filter((s) => s !== symbol)].slice(0, 5);
+      local.set("recent", next); setRecent(next);
+    }).catch((e) => setErr(e.message));
     // Analysis runs as a server job: poll it and show which step it's on.
     let stop = false;
     api.startResearch(symbol).then(async (job) => {
@@ -46,9 +50,11 @@ export default function Research({ symbol, setSymbol }) {
         <button type="submit">Search</button>
       </form>
       <div className="recent">
-        {[...new Set([...recent, ...SUGGEST])].slice(0, 8).map((s) => (
+        <span className="recent-label">{recent.length ? "Recent" : "Try"}</span>
+        {(recent.length ? recent : SUGGEST).map((s) => (
           <button key={s} className={s === symbol ? "on" : ""} onClick={() => go(s)}>{s}</button>
         ))}
+        {recent.length > 0 && <button className="clear" onClick={() => { local.set("recent", []); setRecent([]); }}>Clear</button>}
       </div>
 
       {!symbol && (

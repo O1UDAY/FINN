@@ -389,3 +389,22 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 .ask-typed { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-top: 0; border-radius: 0 0 10px 10px; background: var(--paper-2); }
 .ask-typed li + li { border-top: 1px solid var(--rule); }
 .ask-typed button { display: block; width: 100%; text-align: left; min-height: 44px; padding: 0 12px; color: var(--ink); font-size: 15px; }
+
+/* Stories read as things to open: a card, a press state, and a line saying what's inside */
+.open-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--oxford); font-weight: 600; }
+.open-hint .chev { flex: none; transition: transform .2s ease; }
+.open-hint .chev.open { transform: rotate(90deg); }
+[data-paper="stocks"] .story-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+[data-paper="stocks"] .swipe { border-bottom: 0; border-radius: 14px; }
+[data-paper="stocks"] .swipe .under { border-radius: 14px; padding-left: 16px; }
+[data-paper="stocks"] .story { background: var(--paper-2); border-radius: 14px; padding: 14px 16px 12px; }
+[data-paper="stocks"] .story:active:not(.dragging) { background: #2c2c2e; }
+[data-paper="stocks"] .story.speaking { box-shadow: inset 0 0 0 2px var(--claret); padding-left: 16px; }
+[data-paper="stocks"] .story .open-hint { border-top: 0.5px solid var(--rule-strong); padding-top: 9px; }
+[data-paper="stocks"] .story .body .ask, [data-paper="stocks"] .story .body .figs th, [data-paper="stocks"] .story .body .figs td { border-color: var(--rule-strong); }
+.recent-label { align-self: center; font-size: 13px; color: var(--ink-3); margin-right: -6px; }
+.recent .clear { color: var(--ink-3); margin-left: auto; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .open-hint .chev { transition: none; } }
+/* Inside a story card the card is already grey: lift nested wells one step */
+[data-paper="stocks"] .story .turn .you, [data-paper="stocks"] .story .ask-typed { background: #3a3a3c; }
+[data-paper="stocks"] .story .actions .done { background: #3a3a3c; }

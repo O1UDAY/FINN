@@ -68,6 +68,11 @@ export default function Card({ item, lead, focus, speaking, onDone, onAsk }) {
           {item.related > 0 && <><span className="sep">|</span><span>+{item.related} related</span></>}
         </div>
         {item.why && <div className={"why" + (item.alert ? " alert" : "")}>{item.why}</div>}
+        {item.kind === "filing" && (
+          <div className="open-hint" aria-hidden>
+            <span>{open ? "Close" : HINT[item.category] || "Read summary"}</span><Chevron open={open} />
+          </div>
+        )}
 
         {open && item.kind === "filing" && (
           <div className="body">
@@ -88,6 +93,15 @@ export default function Card({ item, lead, focus, speaking, onDone, onAsk }) {
     </li>
   );
 }
+
+// What tapping a story will show, so it reads as something to open.
+const HINT = { results: "Revenue to PAT, QoQ and YoY", management_change: "Who they are, where they came from" };
+
+const Chevron = ({ open }) => (
+  <svg className={"chev" + (open ? " open" : "")} width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+    <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 function Move({ item }) {
   const m = item.move;
