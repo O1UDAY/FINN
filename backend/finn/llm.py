@@ -11,6 +11,7 @@ import json
 import os
 import re
 import time
+from contextvars import ContextVar
 from datetime import datetime
 
 import requests
@@ -20,6 +21,12 @@ from .db import connect
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY") or os.getenv("FINN_ANTHROPIC_KEY")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# A visitor's own Gemini key, set per request from the X-Gemini-Key header (see app.py). Never stored or logged.
+USER_KEY: ContextVar[str | None] = ContextVar("user_gemini_key", default=None)
+
+
+def gemini_key():
+    return USER_KEY.get() or GEMINI_KEY
 
 MODELS = {
     "anthropic": {"cheap": "claude-haiku-5-5", "strong": "claude-sonnet-5-5"},
@@ -44,6 +51,8 @@ def provider():
     pref = os.getenv("FINN_LLM_PROVIDER")
     if pref == "replay":
         return "replay"
+    if USER_KEY.get():
+        return "gemini"
     if pref == "gemini" and GEMINI_KEY:
         return "gemini"
     if ANTHROPIC_KEY:
@@ -74,7 +83,7 @@ def _anthropic(model, system, prompt, max_tokens):
 def _gemini(model, system, prompt, max_tokens):
     r = requests.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        headers={"x-goog-api-key": GEMINI_KEY},  # header, not ?key=, so the key never lands in URLs or error logs
+        headers={"x-goog-api-key": gemini_key()},  # header, not ?key=, so the key never lands in URLs or error logs
         json={"systemInstruction": {"parts": [{"text": system}]},
               "contents": [{"role": "user", "parts": [{"text": prompt}]}],
               # Thinking models spend output tokens on reasoning first; without headroom the answer (often JSON) is cut off.
@@ -114,6 +123,23 @@ def _with_retry(call, *args, attempts=3):
             if not _retryable(e) or _daily_quota(e) or i == attempts - 1:
                 raise
             time.sleep(2 * 2 ** i)  # 2s, 4s
+
+
+def check_key(key):
+    """One tiny call with a visitor's key, so a typo is caught when it's saved rather than mid-research."""
+    token = USER_KEY.set(key)
+    try:
+        _gemini(MODELS["gemini"]["cheap"], "Be terse.", "Reply OK.", 5)
+        return {"ok": True}
+    except requests.HTTPError as e:
+        code = e.response.status_code if e.response is not None else 0
+        if code == 429:
+            return {"ok": True, "note": "Key works, but its free limit is used up for now."}
+        return {"ok": False, "error": "Google rejected this key. Check it and try again."}
+    except requests.RequestException:
+        return {"ok": False, "error": "Couldn't reach Google to check the key. Try again."}
+    finally:
+        USER_KEY.reset(token)
 
 
 def complete(prompt: str, tier="cheap", system="You are a precise financial analyst. Be terse.", max_tokens=1500):

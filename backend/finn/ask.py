@@ -105,6 +105,9 @@ def ask(symbol: str, question: str, aid: str | None = None) -> dict:
         '{"found": true, "answer": "...", "cites": [{"doc": 1, "page": 7, "quote": "exact words"}]}\n\n'
         + "\n".join(excerpts))
     got = llm.complete_json(prompt, tier="cheap", max_tokens=500)
+    if got is None:
+        return {**none, "answer": "The AI model couldn't answer just now (its free limit may be used up, or the key "
+                                  "was refused). Try again shortly, or check the key in Settings."}
     if not isinstance(got, dict) or not got.get("found"):
         return none
     cites = []

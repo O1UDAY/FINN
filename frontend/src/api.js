@@ -1,7 +1,10 @@
 const BASE = import.meta.env.VITE_API_URL || "";
 
-async function req(path, opts) {
-  const r = await fetch(BASE + path, opts);
+async function req(path, opts = {}) {
+  // A visitor's own Gemini key, if they set one in Settings: kept in this browser, sent with each request.
+  const key = local.get("gemini_key", null);
+  const headers = key ? { ...(opts.headers || {}), "X-Gemini-Key": key } : opts.headers;
+  const r = await fetch(BASE + path, { ...opts, headers });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
     throw new Error(body.detail || `Request failed (${r.status})`);
@@ -22,6 +25,7 @@ export const api = {
   settings: () => req("/api/settings"),
   saveSettings: (v) => req("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(v) }),
   status: () => req("/api/status"),
+  checkKey: (key) => req("/api/key/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) }),
   refresh: () => req("/api/refresh", { method: "POST" }),
 };
 

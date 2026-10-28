@@ -51,7 +51,7 @@ cd .. && python -m uvicorn app:app --app-dir backend --port 8000
 
 Open http://localhost:8000. To try it on a phone on the same Wi-Fi, add `--host 0.0.0.0` and open `http://<laptop-ip>:8000`. For frontend development, `npm run dev` in `frontend/` proxies `/api` to :8000.
 
-Tests: `cd backend && python -m pytest -q` (35 tests).
+Tests: `cd backend && python -m pytest -q` (37 tests).
 
 ## Environment variables
 
@@ -61,6 +61,7 @@ Tests: `cd backend && python -m pytest -q` (35 tests).
 | `FINN_GEMINI_CHEAP`, `FINN_GEMINI_STRONG` | Override model names when Google retires them. |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Optional push alerts after each refresh. Unset = silently off. |
 | `FINN_PUBLIC_URL` | Base URL used in alert deep links (`/?story=<id>`). |
+| *(visitor key)* | Optional: anyone can paste their own Gemini key in Settings. Sent as `X-Gemini-Key` with their requests only, never stored server-side. |
 | `FINN_ADMIN_TOKEN` | Enables `POST /api/admin/refresh` (header `X-Admin-Token`). |
 | `FINN_AUTO_REFRESH`, `FINN_FILINGS_SECONDS`, `FINN_REFRESH_SECONDS` | In-process refresh thread (default on): filings and alerts every 15 min, full refresh every 6h and once after the 16:00 IST close. |
 | `TAVILY_API_KEY` | Optional web lookup for executive bios. **Optional, untested**: no key was available; bios come from the filing's own profile annexure. |

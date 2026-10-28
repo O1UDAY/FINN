@@ -372,3 +372,9 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 .custom-window input { min-height: 44px; background: var(--paper-2); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 0 10px; color-scheme: inherit; }
 .custom-window .note { margin: 0; }
 .custom-window .link-btn { min-height: 44px; margin-left: auto; }
+
+/* Bring your own key */
+.own-key { margin-top: 22px; }
+.own-key h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+.own-key h3 span { font-weight: 400; font-size: 13px; color: var(--ink-3); margin-left: 6px; }
+.own-key .row { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }

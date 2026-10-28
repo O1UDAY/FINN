@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "./api";
+import { api, local } from "./api";
 import Appearance from "./Appearance";
 import Masthead from "./Masthead";
 import { CATS } from "./ui";
@@ -95,7 +95,7 @@ export default function Watch() {
         <h2>Data</h2>
         <div className="rows">
           <div className="row"><span className="muted">Last updated</span><span>{status?.refreshing ? "Updating…" : status?.last_refresh?.replace("T", " ").slice(0, 16) || "Not yet today"}</span></div>
-          <div className="row"><span className="muted">Language model</span><span>{status?.llm?.provider || "None, rules only"}</span></div>
+          <div className="row"><span className="muted">Language model</span><span>{status?.llm?.provider ? `${status.llm.provider}${status.own_key ? " (your key)" : ""}` : "None, rules only"}</span></div>
           <div className="row"><span className="muted">Telegram alerts</span><span>{status?.telegram ? "Connected" : "Not set up"}</span></div>
           <div className="row"><span className="muted">Model spend so far</span><span>${status?.llm?.total_usd?.toFixed(4) ?? "0.0000"}</span></div>
         </div>
@@ -104,8 +104,51 @@ export default function Watch() {
           <button className="secondary" onClick={async () => { setTestMsg(null); const r = await api.testAlert().catch((e) => ({ ok: false, error: e.message })); setTestMsg(r); }}>Send test alert</button>
         </p>
         {testMsg && <p className={"note" + (testMsg.ok ? "" : " warn")} role="status">{testMsg.ok ? "Test alert sent. Check Telegram." : testMsg.error}</p>}
+        <OwnKey onChange={() => api.status().then(setStatus).catch(() => {})} />
       </section>
     </>
+  );
+}
+
+/** Optional: bring your own Gemini key, so research and questions don't share the app's free daily limit. */
+function OwnKey({ onChange }) {
+  const [key, setKey] = useState(() => local.get("gemini_key", null));
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function save(e) {
+    e.preventDefault();
+    const v = draft.trim();
+    if (!v) return;
+    setBusy(true); setMsg(null);
+    const r = await api.checkKey(v).catch((err) => ({ ok: false, error: err.message }));
+    setBusy(false);
+    if (!r.ok) { setMsg({ ok: false, text: r.error }); return; }
+    local.set("gemini_key", v); setKey(v); setDraft("");
+    setMsg({ ok: true, text: r.note || "Key saved. Research and questions now use it." });
+    onChange();
+  }
+  const remove = () => { local.set("gemini_key", null); setKey(null); setMsg({ ok: true, text: "Key removed. FINN is back on the app's own key." }); onChange(); };
+
+  return (
+    <div className="own-key">
+      <h3>Your own AI key <span>optional</span></h3>
+      {key ? (
+        <div className="row"><span>Using your Gemini key ending {key.slice(-4)}</span><button className="link-btn" onClick={remove}>Remove</button></div>
+      ) : (
+        <form className="search" onSubmit={save}>
+          <input type="password" value={draft} onChange={(e) => { setDraft(e.target.value); setMsg(null); }} placeholder="Paste a Gemini API key"
+            aria-label="Your Gemini API key" autoComplete="off" spellCheck={false} style={{ textTransform: "none" }} />
+          <button type="submit" disabled={busy}>{busy ? "Checking…" : "Save"}</button>
+        </form>
+      )}
+      {msg && <p className={"note" + (msg.ok ? "" : " warn")} role="status">{msg.text}</p>}
+      <p className="note">
+        Use your own free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a> if
+        the app's daily limit runs out. It stays in this browser only and is sent with your requests; FINN never saves it.
+      </p>
+    </div>
   );
 }
 

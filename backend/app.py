@@ -1,5 +1,6 @@
 """FINN API. Serves the built PWA from ../frontend/dist when present, so one service = one URL."""
 import os
+import contextvars
 import threading
 import time
 import uuid
@@ -25,6 +26,19 @@ from ingest import run as run_ingest
 
 app = FastAPI(title="FINN")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def visitor_key(request, call_next):
+    """A visitor may bring their own Gemini key; it applies to their requests only and is never stored."""
+    key = (request.headers.get("x-gemini-key") or "").strip()[:200] or None
+    token = llm.USER_KEY.set(key)
+    try:
+        return await call_next(request)
+    finally:
+        llm.USER_KEY.reset(token)
+
+
 _state = {"refreshing": False, "last_refresh": None, "last_error": None}
 _refresh_lock = threading.Lock()
 
@@ -78,7 +92,16 @@ def startup():
 
 @app.get("/api/status")
 def status():
-    return {**_state, "llm": llm.spend(), "data": data_status(), "telegram": notify.configured()}
+    return {**_state, "llm": llm.spend(), "data": data_status(), "telegram": notify.configured(),
+            "own_key": bool(llm.USER_KEY.get())}
+
+
+@app.post("/api/key/check")
+def key_check(body: dict = Body(...)):
+    key = str(body.get("key") or "").strip()
+    if len(key) < 20:
+        return {"ok": False, "error": "That doesn't look like a Gemini key."}
+    return llm.check_key(key)
 
 
 @app.get("/api/health")
@@ -216,7 +239,8 @@ def start_research(symbol: str, refresh: bool = False):
             job["status"], job["error"] = "error", str(e)
         except Exception as e:
             job["status"], job["error"] = "error", f"Analysis failed ({type(e).__name__}). Try again."
-    threading.Thread(target=work, daemon=True).start()
+    # Copy the request's context so a visitor's own key is used by the background job too.
+    threading.Thread(target=contextvars.copy_context().run, args=(work,), daemon=True).start()
     return job
 
 

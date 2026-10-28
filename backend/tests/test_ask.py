@@ -39,3 +39,19 @@ def test_cut_off_pdf_is_not_complete():
     from finn.pdftext import _complete
     assert _complete(b"%PDF-1.7 ... trailer\n%%EOF\n")
     assert not _complete(b"%PDF-1.7 ... 5 0 R/Resources 216 0 R/Rotate")
+
+
+def test_visitor_key_wins_for_its_request_only():
+    from finn import llm
+    token = llm.USER_KEY.set("visitor-key-123")
+    try:
+        assert llm.gemini_key() == "visitor-key-123" and llm.provider() == "gemini"
+    finally:
+        llm.USER_KEY.reset(token)
+    assert llm.gemini_key() != "visitor-key-123"
+
+
+def test_model_failure_is_not_reported_as_no_answer(monkeypatch):
+    _setup(monkeypatch, None)
+    r = A.ask("DMART", "What amount is involved?", "a1")
+    assert not r["found"] and "couldn't answer" in r["answer"]
