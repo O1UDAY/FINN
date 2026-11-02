@@ -123,7 +123,7 @@ def refresh():
     return {"started": not _state["refreshing"]}
 
 
-@app.post("/api/admin/refresh")
+@app.api_route("/api/admin/refresh", methods=["GET", "POST", "HEAD", "PUT"])  # cron services differ in what they send
 def admin_refresh(x_admin_token: str | None = Header(default=None)):
     """For an external cron. Requires FINN_ADMIN_TOKEN; disabled when it isn't set."""
     token = os.getenv("FINN_ADMIN_TOKEN")
