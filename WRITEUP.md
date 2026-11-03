@@ -1,5 +1,7 @@
 # FINN — covering note
 
+**Live:** https://finn-oyby.onrender.com · **Code:** https://github.com/O1UDAY/FINN · **Alerts:** [@finn_uday_alerts_bot](https://t.me/finn_uday_alerts_bot) (Settings → Join on Telegram)
+
 **What I built.** FINN is a mobile PWA with two jobs. The **Brief** is a morning paper for a 15-stock portfolio: results with Revenue, EBITDA, PBT and PAT against last quarter and last year (copied from the filing, derived and checked in code), management changes with the incoming person's background, and price/volume moves against thresholds the investor sets. Each story says why it's there; routine paperwork and legally trivial items are folded away, and you swipe stories until you're done. **Research** takes any NSE ticker and holds management to its word: it pulls commitments from the last four calls, finds what management later reported (in later calls and investor presentations), and gives each a verdict with the quarter, page and link.
 
 **Key decisions.**
@@ -24,7 +26,7 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 | A blocked NSE meant an empty demo | NSE retries → BSE fallback → committed snapshot with a visible label | Simulated NSE block: 7 filings fetched from BSE. Empty database: 2,963 rows loaded from the seed |
 | A screener rate limit showed as "No listed company found" | Rate limits detected, retried with backoff, reported as "Data source busy, try again in a minute" | Simulated 429: 3 attempts, then the busy message (HTTP 503) |
 | Cold research took ~60s on one request | Background job with step progress | TITAN (never seen before): job ran to completion, 7 commitments |
-| Nothing actually reached out | Optional Telegram alerts, de-duplicated, capped at 10 per refresh, deep link into the story | Format and de-duplication covered by tests; not sent for real (no bot token) |
+| Nothing actually reached out | Telegram alerts, de-duplicated, capped at 10 per refresh, deep link into the story. Anyone can subscribe: Settings → **Join on Telegram**, tap Start (welcomed within seconds; /stop leaves) | Live: test alert and real alerts delivered to a phone; 5 alerts sent on the first live refresh. A bot can't message a phone number, so joining is one tap on Start |
 | Small tap targets; unvalidated holdings | 44px controls; Yahoo validation and immediate fetch; `.BO` fallback; zero-volume days excluded from the average | At 375px: **0 controls under 44×44**, no horizontal scroll. Fake 6.0× spike → correct 3.0× in the zero-volume test |
 | Polycab's insolvency petitions were folded as "immaterial" | Red flags (insolvency/NCLT, fraud, regulator orders, auditor or KMP resignations, defaults, pledges) skip the size test | 6 Polycab filings now surface as "Red flag: insolvency petition"; 0 false matches across 193 filings. Month view 22 → 25 stories |
 | The cheap model's KPI reading varied run to run | Each document read twice, results merged; a KPI is kept only if its quote is found verbatim in the document; one-reading KPIs are labelled "check the page" | Jubilant KPIs 6 → 11 (the two readings found 6 and 7, agreeing on 2): one pass was missing about half. 0 ungrounded quotes. +≈$0.002 per company |
@@ -36,16 +38,18 @@ I reviewed FINN as ENAM's investment director would, ran it on a company I hadn'
 | One way to interact | Listen to the Brief; ask any story or research page a question, answered only from primary documents with verified quotes | Jubilant "margins?" → "EBITDA margins improved by 110 basis points year-on-year to 20.5%", Feb 2026 call p. 5. DMart commercial-paper filing "amount?" → "Rs 500 crores", p. 1. "CEO's favourite colour?" → "Not in the documents searched." ~12–20s per question on the cheap model; none use the strong model's daily cap |
 | Ask forgot each question; follow-ups failed | The last 3 turns go with each question; a follow-up also searches the previous question's subject; time words ("last year") are matched; references like "D4"/"p14" are read; chart quotes pass when every figure is on the page | Jubilant "margins?" → 20.5%, then "and last year?" → "PAT margins saw a bit of an up and down because of some tax-related reasons", Nov 2025 call p. 14. Before: no answer |
 | A cut-off PDF download was cached, so that filing could never be read | Only complete PDFs (ending in %%EOF) are saved; a partial one is retried, and a broken saved copy is fetched again | 1 of 211 saved PDFs was cut off (HDFC Q2 results: 983 KB of 1,193 KB, 0 pages). Now 24 pages, and "net profit?" → "₹ 385.7 billion" for the half year, p. 21 |
-| No tests | pytest suite | 40 tests pass |
+| Four demo companies showed "No LLM key configured" in Research; four more were in the old uncited format | Re-judged on the strong model, each new result kept only if it actually used the strong model and returned verdicts; snapshot rebuilt | Astral, CDSL, Kaynes, Trent, Dixon, Persistent, Polycab, Titan: all cited now. Kaynes 2 missed, 1 not disclosed; Polycab 4 delivered; CDSL 0 promises because management gives no guidance (said so, not invented) |
+| The free server sleeps, so alerts stopped when nobody visited | External cron every 15 min on a token-protected endpoint (accepts any method, since cron services differ) | Live refresh confirmed from BSE with no errors |
+| No tests | pytest suite | 41 tests pass |
 
-**Cost.** Measured over the whole build: $0.106 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.
+**Cost.** Measured over the whole build: about $0.28 in model calls at Gemini list prices; the free tier makes it $0. A new company's first research run is about **$0.009–0.014** (including the second KPI reading); a cached one is free.
 
 **Free-tier limit.** Gemini's free tier allows 20 strong-model requests a day. Research needs one per new company (cached afterwards), so the cap covers about 20 new companies a day; past it FINN falls back to the cheap model and stops retrying, so retries don't eat into the cap. A reviewer who hits it can paste their own AI key in Settings (Gemini, Claude or OpenAI, detected from the key): it is checked with one tiny call, kept only in their browser, sent with their requests and never stored on the server.
 
 ## Deliberately left out
 - Intraday data. The brief asks for end of day, and intraday data would add cost without adding judgement.
 - Reading annual reports in full. They're linked; the effort went into transcripts and presentations, where guidance and KPIs live.
-- Web push and accounts. Telegram covers "reach out" without a login system.
+- Web push and accounts. Telegram covers "reach out" without a login system. On Render's free plan the subscriber list resets on redeploy (no persistent disk); the owner's chat is stored in config and always receives alerts.
 - Tavily-based executive bios. The code path exists but is untested; bios come from exchange filings only (the filing, the one it references, then the company's other recent filings).
 - Extra visual themes. They're built, but hidden behind a flag; the product ships one look: dark, after Apple's Stocks app (system font, iOS greys, green and red figure pills), because a portfolio app is read in short glances, often early or late.
 
