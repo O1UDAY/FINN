@@ -89,11 +89,24 @@ def _scheduler():
 def startup():
     if os.getenv("FINN_AUTO_REFRESH", "1") == "1":
         threading.Thread(target=_scheduler, daemon=True).start()
+        if notify.configured():
+            threading.Thread(target=_telegram_listener, daemon=True).start()
+
+
+def _telegram_listener():
+    """Long-polls the bot so someone tapping Start is subscribed (and welcomed) within seconds."""
+    while True:
+        try:
+            notify.poll_subscribers()
+        except Exception as e:
+            print("telegram listener:", e)
+            time.sleep(30)  # e.g. 409 while another copy of the app polls the same bot
 
 
 @app.get("/api/status")
 def status():
     return {**_state, "llm": llm.spend(), "data": data_status(), "telegram": notify.configured(),
+            "telegram_bot": notify.bot_link(), "telegram_subscribers": len(notify.recipients()),
             "own_key": bool(llm.USER_KEY.get())}
 
 

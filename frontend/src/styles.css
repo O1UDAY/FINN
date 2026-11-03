@@ -408,3 +408,5 @@ blockquote { margin: 8px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--
 /* Inside a story card the card is already grey: lift nested wells one step */
 [data-paper="stocks"] .story .turn .you, [data-paper="stocks"] .story .ask-typed { background: #3a3a3c; }
 [data-paper="stocks"] .story .actions .done { background: #3a3a3c; }
+.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.btn-row .muted { align-self: center; }

@@ -1,4 +1,7 @@
-"""Push channel: Telegram, optional. Unset TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID and this does nothing.
+"""Push channel: Telegram, optional. Unset TELEGRAM_BOT_TOKEN and this does nothing.
+
+Anyone can subscribe: open the bot from Settings and tap Start (/stop leaves). Alerts go to every subscriber, plus
+TELEGRAM_CHAT_ID if set. A bot can't message a phone number, only a chat that has started it.
 
 Every alert ID that has been delivered (or, with Telegram off, surfaced) is written to notified_alerts, so a refresh
 never re-alerts the same filing or price move. Plain HTTPS to the Bot API, no extra dependency.
@@ -15,15 +18,82 @@ MAX_PER_REFRESH = 10
 
 
 def configured():
-    return bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"))
+    return bool(os.getenv("TELEGRAM_BOT_TOKEN"))
+
+
+def _api(method, **body):
+    r = requests.post(f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/{method}", json=body, timeout=40)
+    if not r.ok:
+        raise RuntimeError(f"Telegram HTTP {r.status_code}: {r.text[:120]}")
+    return r.json()["result"]
+
+
+def _subs(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS subscribers (chat_id TEXT PRIMARY KEY, name TEXT, joined TEXT)")
+    return conn
+
+
+def recipients(conn=None):
+    conn = _subs(conn or connect())
+    chats = [r["chat_id"] for r in conn.execute("SELECT chat_id FROM subscribers")]
+    own = os.getenv("TELEGRAM_CHAT_ID")
+    return list(dict.fromkeys(([own] if own else []) + chats))
+
+
+_bot = {}
+
+
+def bot_link():
+    """t.me link to the bot, for the Join button. Looked up once from the token."""
+    if not configured():
+        return None
+    if "url" not in _bot:
+        try:
+            _bot["url"] = f"https://t.me/{_api('getMe')['username']}"
+        except Exception:
+            return None
+    return _bot["url"]
+
+
+WELCOME = ("<b>You're subscribed to FINN alerts.</b>\nYou'll get a message here when a filing or price move in the "
+           "portfolio is unusual enough to matter. Send /stop to unsubscribe.")
+
+
+def poll_subscribers(timeout=25):
+    """One long-poll for /start and /stop. Runs in a loop on the server; returns how many updates it handled."""
+    conn = _subs(connect())
+    from .db import get_meta, set_meta
+    offset = int(get_meta(conn, "telegram_offset", 0))
+    ups = _api("getUpdates", offset=offset, timeout=timeout, allowed_updates=["message"])
+    for u in ups:
+        set_meta(conn, "telegram_offset", u["update_id"] + 1)
+        m = u.get("message") or {}
+        chat, txt = str(m.get("chat", {}).get("id", "")), (m.get("text") or "").strip().lower()
+        if not chat:
+            continue
+        if txt.startswith("/stop"):
+            conn.execute("DELETE FROM subscribers WHERE chat_id=?", (chat,)); conn.commit()
+            _api("sendMessage", chat_id=chat, text="Unsubscribed. Send /start to get FINN alerts again.")
+        else:
+            new = conn.execute("INSERT OR IGNORE INTO subscribers VALUES (?,?,?)",
+                               (chat, m["chat"].get("first_name", ""), datetime.now().isoformat(timespec="seconds"))).rowcount
+            conn.commit()
+            if new or txt.startswith("/start"):
+                _api("sendMessage", chat_id=chat, text=WELCOME, parse_mode="HTML")
+    return len(ups)
 
 
 def _send(text):
-    token, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
-    r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=15,
-                      json={"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True})
-    if not r.ok:
-        raise RuntimeError(f"Telegram HTTP {r.status_code}: {r.text[:120]}")
+    errors = 0
+    chats = recipients()
+    for chat in chats:
+        try:
+            _api("sendMessage", chat_id=chat, text=text, parse_mode="HTML", disable_web_page_preview=True)
+        except Exception as e:
+            errors += 1
+            print("telegram:", chat, e)
+    if chats and errors == len(chats):
+        raise RuntimeError("Telegram refused every send")
 
 
 def story_link(alert_id):
@@ -86,7 +156,9 @@ def send_new_alerts(conn=None, hours=24):
 
 def send_test():
     if not configured():
-        return {"ok": False, "error": "Telegram isn't set up. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env."}
+        return {"ok": False, "error": "Telegram isn't set up. Add TELEGRAM_BOT_TOKEN to .env."}
+    if not recipients():
+        return {"ok": False, "error": "Nobody has joined yet. Tap Join on Telegram, then Start in the bot."}
     try:
         _send("<b>FINN test alert</b>\nIf you can read this, alerts will reach you here.")
         return {"ok": True}

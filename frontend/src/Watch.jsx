@@ -91,12 +91,23 @@ export default function Watch() {
         {addMsg && <p className={"note" + (addMsg.ok ? "" : " warn")} role="status">{addMsg.text}</p>}
       </section>
 
+      {status?.telegram_bot && (
+        <section className="sec">
+          <h2>Alerts on your phone</h2>
+          <p className="note">FINN messages you on Telegram the moment something unusual happens in the portfolio. Open the bot and tap <b>Start</b>; send /stop to leave.</p>
+          <p className="btn-row">
+            <a className="primary button" href={status.telegram_bot} target="_blank" rel="noreferrer">Join on Telegram</a>
+            <span className="muted">{status.telegram_bot.replace("https://t.me/", "@")}</span>
+          </p>
+        </section>
+      )}
+
       <section className="sec">
         <h2>Data</h2>
         <div className="rows">
           <div className="row"><span className="muted">Last updated</span><span>{status?.refreshing ? "Updating…" : status?.last_refresh?.replace("T", " ").slice(0, 16) || "Not yet today"}</span></div>
           <div className="row"><span className="muted">Language model</span><span>{status?.llm?.provider ? `${PROVIDER[status.llm.provider] || status.llm.provider}${status.own_key ? " (your key)" : ""}` : "None, rules only"}</span></div>
-          <div className="row"><span className="muted">Telegram alerts</span><span>{status?.telegram ? "Connected" : "Not set up"}</span></div>
+          <div className="row"><span className="muted">Telegram alerts</span><span>{status?.telegram ? `On, ${status.telegram_subscribers} subscribed` : "Not set up"}</span></div>
           <div className="row"><span className="muted">Model spend so far</span><span>${status?.llm?.total_usd?.toFixed(4) ?? "0.0000"}</span></div>
         </div>
         <p className="btn-row">
